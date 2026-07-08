@@ -13,24 +13,7 @@ from pynput.keyboard import Controller as KeyboardController, Key
 app = FastAPI()
 keyboard = KeyboardController()
 
-# Initialize screen boundaries
-main_display_id = Quartz.CGMainDisplayID()
-bounds = Quartz.CGDisplayBounds(main_display_id)
-SCREEN_WIDTH = bounds.size.width
-SCREEN_HEIGHT = bounds.size.height
 
-# Initialize virtual mouse coordinates to center of the screen
-virtual_mouse_x = SCREEN_WIDTH / 2
-virtual_mouse_y = SCREEN_HEIGHT / 2
-
-# Try to get actual initial mouse position
-try:
-    init_event = Quartz.CGEventCreate(None)
-    pos = Quartz.CGEventGetLocation(init_event)
-    virtual_mouse_x = pos.x
-    virtual_mouse_y = pos.y
-except Exception as e:
-    pass
 
 # Set up basic logging
 logging.basicConfig(level=logging.INFO)
@@ -68,7 +51,6 @@ async def get_index():
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     logger.info("iPhone Client Connected.")
-    global virtual_mouse_x, virtual_mouse_y
     try:
         while True:
             data = await websocket.receive_text()
@@ -80,31 +62,32 @@ async def websocket_endpoint(websocket: WebSocket):
                     dx = cmd.get("dx", 0)
                     dy = cmd.get("dy", 0)
                     
-                    virtual_mouse_x += dx
-                    virtual_mouse_y += dy
-                    
-                    # Boundary check
-                    virtual_mouse_x = max(0, min(SCREEN_WIDTH, virtual_mouse_x))
-                    virtual_mouse_y = max(0, min(SCREEN_HEIGHT, virtual_mouse_y))
+                    current_event = Quartz.CGEventCreate(None)
+                    current_pos = Quartz.CGEventGetLocation(current_event)
+                    new_x = current_pos.x + dx
+                    new_y = current_pos.y + dy
                     
                     event = Quartz.CGEventCreateMouseEvent(
                         None, 
                         Quartz.kCGEventMouseMoved, 
-                        (virtual_mouse_x, virtual_mouse_y), 
+                        (new_x, new_y), 
                         Quartz.kCGMouseButtonLeft
                     )
                     Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
                     
                 elif action == "click":
                     button = cmd.get("button", "left")
+                    current_event = Quartz.CGEventCreate(None)
+                    current_pos = Quartz.CGEventGetLocation(current_event)
+                    
                     if button == "left":
-                        mouse_down = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, (virtual_mouse_x, virtual_mouse_y), Quartz.kCGMouseButtonLeft)
-                        mouse_up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (virtual_mouse_x, virtual_mouse_y), Quartz.kCGMouseButtonLeft)
+                        mouse_down = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, (current_pos.x, current_pos.y), Quartz.kCGMouseButtonLeft)
+                        mouse_up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (current_pos.x, current_pos.y), Quartz.kCGMouseButtonLeft)
                         Quartz.CGEventPost(Quartz.kCGHIDEventTap, mouse_down)
                         Quartz.CGEventPost(Quartz.kCGHIDEventTap, mouse_up)
                     elif button == "right":
-                        mouse_down = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventRightMouseDown, (virtual_mouse_x, virtual_mouse_y), Quartz.kCGMouseButtonRight)
-                        mouse_up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventRightMouseUp, (virtual_mouse_x, virtual_mouse_y), Quartz.kCGMouseButtonRight)
+                        mouse_down = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventRightMouseDown, (current_pos.x, current_pos.y), Quartz.kCGMouseButtonRight)
+                        mouse_up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventRightMouseUp, (current_pos.x, current_pos.y), Quartz.kCGMouseButtonRight)
                         Quartz.CGEventPost(Quartz.kCGHIDEventTap, mouse_down)
                         Quartz.CGEventPost(Quartz.kCGHIDEventTap, mouse_up)
                         

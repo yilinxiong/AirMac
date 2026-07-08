@@ -1,0 +1,144 @@
+INFO:     Started server process [2627]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+
+==================================================
+🚀 Mac Remote Controller Server Started!
+📱 Please open Safari on your iPhone and access:
+👉 http://192.168.1.9:8000 👈
+==================================================
+
+INFO:     192.168.1.17:59062 - "GET / HTTP/1.1" 200 OK
+INFO:     192.168.1.17:59064 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59069 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:     192.168.1.17:59070 - "GET / HTTP/1.1" 200 OK
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59072 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+36:67: execution error: System Events got an error: osascript is not allowed to send keystrokes. (1002)
+36:67: execution error: System Events got an error: osascript is not allowed to send keystrokes. (1002)
+36:67: execution error: System Events got an error: osascript is not allowed to send keystrokes. (1002)
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59074 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59108 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:     192.168.1.17:59109 - "GET / HTTP/1.1" 200 OK
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59111 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59114 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59115 - "GET / HTTP/1.1" 200 OK
+INFO:     192.168.1.17:59117 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:     192.168.1.17:59121 - "GET / HTTP/1.1" 200 OK
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59123 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59137 - "GET / HTTP/1.1" 200 OK
+INFO:     192.168.1.17:59139 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59141 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59146 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:     192.168.1.17:59151 - "GET / HTTP/1.1" 200 OK
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59153 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59183 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59199 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59208 - "GET / HTTP/1.1" 200 OK
+INFO:     192.168.1.17:59210 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:     192.168.1.17:59211 - "GET / HTTP/1.1" 200 OK
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59215 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59229 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:     192.168.1.17:59230 - "GET / HTTP/1.1" 200 OK
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59232 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:     192.168.1.17:59233 - "GET / HTTP/1.1" 200 OK
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59235 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:     192.168.1.17:59236 - "GET / HTTP/1.1" 200 OK
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59238 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59241 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59243 - "GET / HTTP/1.1" 200 OK
+INFO:     192.168.1.17:59245 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59249 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     Started server process [1040]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+
+==================================================
+🚀 Mac Remote Controller Server Started!
+📱 Please open Safari on your iPhone and access:
+👉 http://192.168.1.9:8000 👈
+==================================================
+
+INFO:     192.168.1.17:59301 - "GET / HTTP/1.1" 200 OK
+INFO:     192.168.1.17:59303 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:     192.168.1.17:59301 - "GET / HTTP/1.1" 200 OK
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59305 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:MacRemote:iPhone Client Disconnected.

@@ -1,0 +1,5 @@
+fastapi
+uvicorn[standard]
+pynput
+websockets
+pyperclip

@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <!-- Meta tags optimized for iPhone Safari full-screen app experience -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Mac Trackpad</title>
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.05); 
+            --glass-border: rgba(255, 255, 255, 0.1); 
+            --glass-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            --neu-inner: inset 4px 4px 10px rgba(0, 0, 0, 0.4), inset -4px -4px 10px rgba(255, 255, 255, 0.06);
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #1c1c1e; 
+            color: #ffffff;
+            font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-weight: 400;
+            overflow: hidden;
+            overscroll-behavior-y: contain;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        
+        #matrixCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            pointer-events: none;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            padding: calc(env(safe-area-inset-top) + 15px) 20px calc(env(safe-area-inset-bottom) + 15px) 20px;
+            box-sizing: border-box;
+            gap: 20px; 
+            position: relative;
+            z-index: 1; 
+        }
+
+        /* Top Controls: Glass Tiles */
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .glass-btn {
+            flex: 1;
+            aspect-ratio: 1 / 1;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            box-shadow: var(--glass-shadow);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+            cursor: pointer;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .glass-btn:active {
+            transform: scale(0.92);
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .glass-btn svg {
+            width: 26px;
+            height: 26px;
+            stroke-width: 1.5;
+        }
+
+        /* Media Button remains circular but matches unified style */
+        #media-btn {
+            border-radius: 50%;
+        }
+
+        /* Trackpad - Unified Native Glass */
+        #trackpad {
+            flex: 1;
+            position: relative;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 32px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            box-shadow: var(--glass-shadow);
+            z-index: 1;
+        }
+
+        /* Etching Mark inside Trackpad */
+        .etching {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            opacity: 0.15;
+            color: #ffffff;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .etching svg {
+            width: 36px;
+            height: 36px;
+            stroke-width: 1.2;
+        }
+
+        .etching span {
+            font-size: 13px;
+            letter-spacing: 4px;
+            font-weight: 300;
+        }
+
+        .status-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            pointer-events: none;
+            z-index: 3; 
+            position: absolute;
+            bottom: 30px; 
+        }
+
+        .hint {
+            color: rgba(255, 255, 255, 0.8); 
+            font-size: 15px;
+            font-weight: 400;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .spinner {
+            display: none;
+            width: 14px;
+            height: 14px;
+            border: 2px dotted rgba(255,255,255,0.6);
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Projection Bar */
+        .projection-bar {
+            display: flex;
+            gap: 14px;
+            align-items: center;
+        }
+        
+        .projection-bar input {
+            flex: 1;
+            padding: 16px 20px;
+            border-radius: 24px;
+            border: 1px solid var(--glass-border);
+            background: rgba(0,0,0,0.2);
+            box-shadow: inset 4px 4px 10px rgba(0,0,0,0.4), inset -2px -2px 6px rgba(255,255,255,0.04);
+            color: #ffffff;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .projection-bar input::placeholder {
+            color: rgba(255, 255, 255, 0.4); 
+            font-weight: 300;
+        }
+
+        .projection-bar input:focus {
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        /* Unified Send Button */
+        .send-btn {
+            width: 52px;
+            height: 52px;
+            flex-shrink: 0;
+            border-radius: 50%;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: var(--glass-shadow);
+            transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            cursor: pointer;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .send-btn:active {
+            transform: scale(0.92);
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .send-btn svg {
+            width: 22px;
+            height: 22px;
+            stroke: currentColor;
+            stroke-width: 1.5;
+            margin-left: -2px;
+            margin-top: 1px;
+        }
+
+        #hidden-input {
+            position: absolute;
+            top: -1000px;
+            left: -1000px;
+            opacity: 0;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="matrixCanvas"></canvas>
+
+    <div class="container">
+        <!-- Top Controls -->
+        <div class="controls">
+            <div class="glass-btn" id="media-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="6 5 12 12 6 19"></polygon>
+                    <line x1="15" y1="6" x2="15" y2="18"></line>
+                    <line x1="19" y1="6" x2="19" y2="18"></line>
+                </svg>
+            </div>
+            <div class="glass-btn" id="keyboard-trigger">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+                    <line x1="6" y1="8" x2="6.01" y2="8"></line>
+                    <line x1="10" y1="8" x2="10.01" y2="8"></line>
+                    <line x1="14" y1="8" x2="14.01" y2="8"></line>
+                    <line x1="18" y1="8" x2="18.01" y2="8"></line>
+                    <line x1="6" y1="12" x2="6.01" y2="12"></line>
+                    <line x1="10" y1="12" x2="10.01" y2="12"></line>
+                    <line x1="14" y1="12" x2="14.01" y2="12"></line>
+                    <line x1="18" y1="12" x2="18.01" y2="12"></line>
+                    <line x1="7" y1="16" x2="17" y2="16"></line>
+                </svg>
+            </div>
+            <div class="glass-btn" id="fullscreen-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+                </svg>
+            </div>
+            <div class="glass-btn" id="sleep-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
+            </div>
+            <div class="glass-btn" id="wake-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="5"></circle>
+                    <line x1="12" y1="1" x2="12" y2="3"></line>
+                    <line x1="12" y1="21" x2="12" y2="23"></line>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                    <line x1="1" y1="12" x2="3" y2="12"></line>
+                    <line x1="21" y1="12" x2="23" y2="12"></line>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Trackpad (Maximized Area) -->
+        <div id="trackpad">
+            <div class="etching">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="6" y="3" width="12" height="18" rx="6" ry="6"></rect>
+                    <line x1="12" y1="7" x2="12" y2="11"></line>
+                </svg>
+                <span>TOUCH PAD</span>
+            </div>
+            <div class="status-container">
+                <div class="spinner" id="status-spinner"></div>
+                <div class="hint" id="status-text"></div>
+            </div>
+        </div>
+
+        <!-- Projection Bar -->
+        <div class="projection-bar">
+            <input type="text" id="projection-input" placeholder="输入长文本投射到Mac..." />
+            <div class="send-btn" id="projection-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+            </div>
+        </div>
+        
+        <input type="text" id="hidden-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+    </div>
+
+    <script>
+        // Matrix Rain Setup
+        const canvas = document.getElementById('matrixCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ'.split('');
+        const fontSize = 16;
+        const columns = Math.floor(canvas.width / fontSize) + 1; 
+        const drops = [];
+        for(let x = 0; x < columns; x++) {
+            drops[x] = Math.random() * -100; 
+        }
+        
+        function drawMatrix() {
+            ctx.fillStyle = 'rgba(28, 28, 30, 0.08)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = 'rgba(0, 191, 255, 0.8)'; 
+            ctx.font = fontSize + 'px monospace';
+            
+            for(let i = 0; i < drops.length; i++) {
+                if(drops[i] > 0) {
+                    const text = chars[Math.floor(Math.random() * chars.length)];
+                    ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+                }
+                
+                if(drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                    drops[i] = 0;
+                }
+                drops[i]++;
+            }
+        }
+        setInterval(drawMatrix, 35);
+
+
+        // WebSocket Setup
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+        let ws;
+        let isConnected = false;
+        const hintText = document.getElementById('status-text');
+        const spinner = document.getElementById('status-spinner');
+
+        function connect() {
+            ws = new WebSocket(wsUrl);
+            ws.onopen = () => {
+                isConnected = true;
+                hintText.textContent = "";
+                spinner.style.display = 'none';
+            };
+            ws.onclose = () => {
+                isConnected = false;
+                hintText.textContent = "断开连接，重连中...";
+                spinner.style.display = 'block';
+                setTimeout(connect, 2000);
+            };
+            ws.onerror = (err) => {
+                console.error("WebSocket Error:", err);
+            };
+        }
+
+        connect();
+
+        function sendCmd(cmd) {
+            if (isConnected && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(cmd));
+            }
+        }
+
+        // --- Trackpad Logic ---
+        const trackpad = document.getElementById('trackpad');
+        let lastTouch = null;
+        let lastTouchTime = 0;
+        let isMoved = false;
+        let isThreeFingerSwiped = false; 
+
+        trackpad.addEventListener('touchstart', (e) => {
+            e.preventDefault(); 
+            isMoved = false;
+            isThreeFingerSwiped = false; 
+            lastTouchTime = Date.now();
+            
+            if (e.touches.length === 1) {
+                lastTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            } else if (e.touches.length === 2) {
+                lastTouch = { 
+                    x: (e.touches[0].clientX + e.touches[1].clientX) / 2, 
+                    y: (e.touches[0].clientY + e.touches[1].clientY) / 2 
+                };
+            } else if (e.touches.length === 3) {
+                lastTouch = { 
+                    x: (e.touches[0].clientX + e.touches[1].clientX + e.touches[2].clientX) / 3, 
+                    y: (e.touches[0].clientY + e.touches[1].clientY + e.touches[2].clientY) / 3 
+                };
+            }
+        }, { passive: false });
+
+        trackpad.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (!lastTouch) return;
+            
+            isMoved = true;
+            
+            if (e.touches.length === 1) {
+                const currentTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                const dx = currentTouch.x - lastTouch.x;
+                const dy = currentTouch.y - lastTouch.y;
+                const sensitivity = 1.6; 
+                sendCmd({ action: 'move', dx: dx * sensitivity, dy: dy * sensitivity });
+                lastTouch = currentTouch;
+                
+            } else if (e.touches.length === 2) {
+                const currentTouch = { 
+                    x: (e.touches[0].clientX + e.touches[1].clientX) / 2, 
+                    y: (e.touches[0].clientY + e.touches[1].clientY) / 2 
+                };
+                const dy = currentTouch.y - lastTouch.y;
+                sendCmd({ action: 'scroll', dy: dy });
+                lastTouch = currentTouch;
+
+            } else if (e.touches.length === 3) {
+                if (isThreeFingerSwiped) return; 
+
+                const currentTouch = { 
+                    x: (e.touches[0].clientX + e.touches[1].clientX + e.touches[2].clientX) / 3, 
+                    y: (e.touches[0].clientY + e.touches[1].clientY + e.touches[2].clientY) / 3 
+                };
+                
+                const dx = currentTouch.x - lastTouch.x;
+                const dy = currentTouch.y - lastTouch.y;
+                const swipeThreshold = 40; 
+
+                if (Math.abs(dx) > swipeThreshold || Math.abs(dy) > swipeThreshold) {
+                    if (Math.abs(dy) > Math.abs(dx) && dy < -swipeThreshold) {
+                        sendCmd({ action: 'mission_control' });
+                        isThreeFingerSwiped = true;
+                        if (navigator.vibrate) navigator.vibrate(15);
+                    } else if (Math.abs(dx) > Math.abs(dy)) {
+                        if (dx < -swipeThreshold) {
+                            sendCmd({ action: 'space_right' });
+                            isThreeFingerSwiped = true;
+                            if (navigator.vibrate) navigator.vibrate(15);
+                        } else if (dx > swipeThreshold) {
+                            sendCmd({ action: 'space_left' });
+                            isThreeFingerSwiped = true;
+                            if (navigator.vibrate) navigator.vibrate(15);
+                        }
+                    }
+                }
+            }
+        }, { passive: false });
+
+        trackpad.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            const touchDuration = Date.now() - lastTouchTime;
+            
+            if (!isMoved && !isThreeFingerSwiped) {
+                if (touchDuration < 300) {
+                    if (e.changedTouches.length === 1 && e.touches.length === 0) {
+                        sendCmd({ action: 'click', button: 'left' });
+                        if (navigator.vibrate) navigator.vibrate(15);
+                    } else if (e.changedTouches.length === 2 || (e.changedTouches.length === 1 && e.touches.length === 1)) {
+                        sendCmd({ action: 'click', button: 'right' });
+                        if (navigator.vibrate) navigator.vibrate(15);
+                    }
+                } else if (touchDuration >= 300 && e.changedTouches.length === 1 && e.touches.length === 0) {
+                    sendCmd({ action: 'click', button: 'right' });
+                    if (navigator.vibrate) navigator.vibrate(15);
+                }
+            }
+            
+            if (e.touches.length === 0) {
+                lastTouch = null;
+                isThreeFingerSwiped = false; 
+            } else if (e.touches.length === 1) {
+                lastTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            } else if (e.touches.length === 2) {
+                lastTouch = { 
+                    x: (e.touches[0].clientX + e.touches[1].clientX) / 2, 
+                    y: (e.touches[0].clientY + e.touches[1].clientY) / 2 
+                };
+            }
+        }, { passive: false });
+
+        // --- Button Controls ---
+        document.getElementById('media-btn').addEventListener('click', (e) => {
+            e.preventDefault();
+            sendCmd({ action: 'media', command: 'playpause' });
+            if (navigator.vibrate) navigator.vibrate(15);
+        });
+
+        document.getElementById('fullscreen-btn').addEventListener('click', (e) => {
+            e.preventDefault();
+            sendCmd({ action: 'media', command: 'fullscreen' });
+            if (navigator.vibrate) navigator.vibrate(15);
+        });
+
+        document.getElementById('sleep-btn').addEventListener('click', (e) => {
+            e.preventDefault();
+            sendCmd({ action: 'display_sleep' });
+            if (navigator.vibrate) navigator.vibrate(15);
+        });
+
+        document.getElementById('wake-btn').addEventListener('click', (e) => {
+            e.preventDefault();
+            sendCmd({ action: 'wake_watch' });
+            if (navigator.vibrate) navigator.vibrate(15);
+        });
+
+        document.getElementById('projection-btn').addEventListener('click', (e) => {
+            e.preventDefault();
+            const textInput = document.getElementById('projection-input');
+            const text = textInput.value;
+            if (text) {
+                sendCmd({ action: 'type_text', text: text });
+                textInput.value = '';
+                if (navigator.vibrate) navigator.vibrate(15);
+            }
+        });
+
+        // --- Keyboard Logic ---
+        const hiddenInput = document.getElementById('hidden-input');
+        const keyboardTrigger = document.getElementById('keyboard-trigger');
+
+        keyboardTrigger.addEventListener('click', (e) => {
+            e.preventDefault();
+            hiddenInput.focus();
+            if (navigator.vibrate) navigator.vibrate(15);
+        });
+        
+        hiddenInput.addEventListener('input', (e) => {
+            if (e.data) {
+                sendCmd({ action: 'type', char: e.data });
+            }
+            hiddenInput.value = ''; 
+        });
+
+        hiddenInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Backspace' || e.key === 'Enter') {
+                sendCmd({ action: 'keydown', key: e.key });
+            }
+        });
+        
+        document.body.addEventListener('click', (e) => {
+            if (e.target !== keyboardTrigger && e.target !== hiddenInput) {
+                hiddenInput.blur();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -142,3 +142,23 @@ INFO:     192.168.1.17:59305 - "WebSocket /ws" [accepted]
 INFO:     connection open
 INFO:MacRemote:iPhone Client Connected.
 INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59357 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     192.168.1.17:59362 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:MacRemote:iPhone Client Disconnected.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [1040]
+INFO:     Started server process [4993]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     192.168.1.17:59366 - "WebSocket /ws" [accepted]
+INFO:     connection open
+INFO:MacRemote:iPhone Client Connected.
+INFO:MacRemote:iPhone Client Disconnected.

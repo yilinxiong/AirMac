@@ -5,14 +5,32 @@ import subprocess
 import os
 import pyperclip
 import time
+import Quartz
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
-from pynput.mouse import Controller as MouseController, Button
 from pynput.keyboard import Controller as KeyboardController, Key
 
 app = FastAPI()
-mouse = MouseController()
 keyboard = KeyboardController()
+
+# Initialize screen boundaries
+main_display_id = Quartz.CGMainDisplayID()
+bounds = Quartz.CGDisplayBounds(main_display_id)
+SCREEN_WIDTH = bounds.size.width
+SCREEN_HEIGHT = bounds.size.height
+
+# Initialize virtual mouse coordinates to center of the screen
+virtual_mouse_x = SCREEN_WIDTH / 2
+virtual_mouse_y = SCREEN_HEIGHT / 2
+
+# Try to get actual initial mouse position
+try:
+    init_event = Quartz.CGEventCreate(None)
+    pos = Quartz.CGEventGetLocation(init_event)
+    virtual_mouse_x = pos.x
+    virtual_mouse_y = pos.y
+except Exception as e:
+    pass
 
 # Set up basic logging
 logging.basicConfig(level=logging.INFO)
@@ -50,6 +68,7 @@ async def get_index():
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     logger.info("iPhone Client Connected.")
+    global virtual_mouse_x, virtual_mouse_y
     try:
         while True:
             data = await websocket.receive_text()
@@ -60,20 +79,41 @@ async def websocket_endpoint(websocket: WebSocket):
                 if action == "move":
                     dx = cmd.get("dx", 0)
                     dy = cmd.get("dy", 0)
-                    mouse.move(dx, dy)
+                    
+                    virtual_mouse_x += dx
+                    virtual_mouse_y += dy
+                    
+                    # Boundary check
+                    virtual_mouse_x = max(0, min(SCREEN_WIDTH, virtual_mouse_x))
+                    virtual_mouse_y = max(0, min(SCREEN_HEIGHT, virtual_mouse_y))
+                    
+                    event = Quartz.CGEventCreateMouseEvent(
+                        None, 
+                        Quartz.kCGEventMouseMoved, 
+                        (virtual_mouse_x, virtual_mouse_y), 
+                        Quartz.kCGMouseButtonLeft
+                    )
+                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
                     
                 elif action == "click":
                     button = cmd.get("button", "left")
                     if button == "left":
-                        mouse.click(Button.left, 1)
+                        mouse_down = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, (virtual_mouse_x, virtual_mouse_y), Quartz.kCGMouseButtonLeft)
+                        mouse_up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (virtual_mouse_x, virtual_mouse_y), Quartz.kCGMouseButtonLeft)
+                        Quartz.CGEventPost(Quartz.kCGHIDEventTap, mouse_down)
+                        Quartz.CGEventPost(Quartz.kCGHIDEventTap, mouse_up)
                     elif button == "right":
-                        mouse.click(Button.right, 1)
+                        mouse_down = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventRightMouseDown, (virtual_mouse_x, virtual_mouse_y), Quartz.kCGMouseButtonRight)
+                        mouse_up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventRightMouseUp, (virtual_mouse_x, virtual_mouse_y), Quartz.kCGMouseButtonRight)
+                        Quartz.CGEventPost(Quartz.kCGHIDEventTap, mouse_down)
+                        Quartz.CGEventPost(Quartz.kCGHIDEventTap, mouse_up)
                         
                 elif action == "scroll":
                     dy = cmd.get("dy", 0)
-                    # pynput scroll dy: positive for up, negative for down.
-                    mouse.scroll(0, -dy * 0.05) 
-                    
+                    # Quartz scroll event takes units and values
+                    scroll_event = Quartz.CGEventCreateScrollWheelEvent(None, Quartz.kCGScrollEventUnitPixel, 1, int(-dy))
+                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, scroll_event)
+                                        
                 elif action == "type":
                     char = cmd.get("char", "")
                     if char:

@@ -6,7 +6,8 @@ import os
 import pyperclip
 import time
 import Quartz
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import ipaddress
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from pynput.keyboard import Controller as KeyboardController, Key
 
@@ -41,14 +42,30 @@ async def startup_event():
     print(f"👉 http://{LOCAL_IP}:{PORT} 👈")
     print("="*50 + "\n")
 
+def is_allowed_ip(ip_str: str) -> bool:
+    try:
+        ip = ipaddress.ip_address(ip_str)
+        # 允许私有局域网 IP (192.168.x.x, 10.x.x.x, 172.16.x.x) 和本机回环 IP (127.0.0.1)
+        return ip.is_private or ip.is_loopback
+    except ValueError:
+        return False
+
 @app.get("/")
-async def get_index():
+async def get_index(request: Request):
+    if not is_allowed_ip(request.client.host):
+        raise HTTPException(status_code=403, detail="Access Forbidden: Local network only.")
+        
     with open("index.html", "r", encoding="utf-8") as f:
         html_content = f.read()
     return HTMLResponse(content=html_content)
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    if not is_allowed_ip(websocket.client.host):
+        logger.warning(f"Rejected connection from non-local IP: {websocket.client.host}")
+        await websocket.close(code=1008)
+        return
+        
     await websocket.accept()
     logger.info("iPhone Client Connected.")
     try:

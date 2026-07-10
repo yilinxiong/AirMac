@@ -362,9 +362,28 @@
         setInterval(drawMatrix, 35);
 
 
+        // Setup Device Identity
+        let deviceId = localStorage.getItem('mac_remote_device_id');
+        let deviceName = localStorage.getItem('mac_remote_device_name');
+
+        if (!deviceId) {
+            // Generate simple UUID
+            deviceId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+            localStorage.setItem('mac_remote_device_id', deviceId);
+        }
+
+        if (!deviceName) {
+            deviceName = prompt("首次连接：\n请输入这台设备的名称 (例如: iPhone)", "iPhone");
+            if (!deviceName) deviceName = "未知设备";
+            localStorage.setItem('mac_remote_device_name', deviceName);
+        }
+
         // WebSocket Setup
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+        const wsUrl = `${wsProtocol}//${window.location.host}/ws?device_id=${encodeURIComponent(deviceId)}&device_name=${encodeURIComponent(deviceName)}`;
         let ws;
         let isConnected = false;
         const hintText = document.getElementById('status-text');
@@ -377,11 +396,20 @@
                 hintText.textContent = "";
                 spinner.style.display = 'none';
             };
-            ws.onclose = () => {
+            ws.onclose = (e) => {
                 isConnected = false;
-                hintText.textContent = "断开连接，重连中...";
-                spinner.style.display = 'block';
-                setTimeout(connect, 2000);
+                if (e.code === 4003) { // Rejected by Mac
+                    hintText.textContent = "连接已被 Mac 拒绝";
+                    spinner.style.display = 'none';
+                } else if (e.code === 4001) { // Waiting for prompt
+                    hintText.textContent = "正在等待 Mac 端授权...";
+                    spinner.style.display = 'block';
+                    setTimeout(connect, 3000);
+                } else {
+                    hintText.textContent = "断开连接，重连中...";
+                    spinner.style.display = 'block';
+                    setTimeout(connect, 2000);
+                }
             };
             ws.onerror = (err) => {
                 console.error("WebSocket Error:", err);

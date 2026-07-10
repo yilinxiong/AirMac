@@ -7,6 +7,7 @@ import pyperclip
 import time
 import Quartz
 import ipaddress
+import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from pynput.keyboard import Controller as KeyboardController, Key
@@ -50,6 +51,44 @@ def is_allowed_ip(ip_str: str) -> bool:
     except ValueError:
         return False
 
+def load_whitelist() -> set:
+    try:
+        with open("whitelist.json", "r") as f:
+            return set(json.load(f))
+    except FileNotFoundError:
+        return set()
+
+def save_whitelist(whitelist_set: set):
+    with open("whitelist.json", "w") as f:
+        json.dump(list(whitelist_set), f)
+
+# Global set and lock
+device_whitelist = load_whitelist()
+prompt_locks = {}
+
+async def prompt_for_approval(device_id: str, device_name: str) -> bool:
+    if device_id in prompt_locks:
+        return False
+        
+    prompt_locks[device_id] = True
+    try:
+        script = f'''
+        tell application "System Events"
+            activate
+            display dialog "新设备 [{device_name}] 请求连接 Mac Remote Controller\\n\\n是否允许该设备控制本机？" buttons {{"拒绝", "允许"}} default button "拒绝" with title "安全拦截"
+        end tell
+        '''
+        process = await asyncio.create_subprocess_exec(
+            "osascript", "-e", script,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+        return "允许" in stdout.decode()
+    finally:
+        del prompt_locks[device_id]
+
+
 @app.get("/")
 async def get_index(request: Request):
     if not is_allowed_ip(request.client.host):
@@ -60,14 +99,36 @@ async def get_index(request: Request):
     return HTMLResponse(content=html_content)
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device_name: str = "未知设备"):
     if not is_allowed_ip(websocket.client.host):
         logger.warning(f"Rejected connection from non-local IP: {websocket.client.host}")
         await websocket.close(code=1008)
         return
         
+    if not device_id:
+        logger.warning("Rejected connection: No device_id provided")
+        await websocket.close(code=1008)
+        return
+        
+    if device_id not in device_whitelist:
+        if device_id in prompt_locks:
+            # Tell client to wait
+            await websocket.close(code=4001)
+            return
+            
+        logger.info(f"Prompting approval for new device: {device_name}")
+        approved = await prompt_for_approval(device_id, device_name)
+        if approved:
+            device_whitelist.add(device_id)
+            save_whitelist(device_whitelist)
+            logger.info(f"Device {device_name} approved and whitelisted.")
+        else:
+            logger.warning(f"Device {device_name} rejected by user.")
+            await websocket.close(code=4003)
+            return
+
     await websocket.accept()
-    logger.info("iPhone Client Connected.")
+    logger.info(f"Client {device_name} Connected.")
     try:
         while True:
             data = await websocket.receive_text()

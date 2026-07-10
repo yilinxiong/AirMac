@@ -58,7 +58,40 @@ async def websocket_endpoint(websocket: WebSocket):
                 cmd = json.loads(data)
                 action = cmd.get("action")
                 
-                if action == "move":
+                if action == "auto_copy":
+                    os.system("osascript -e 'tell application \"System Events\" to keystroke \"c\" using command down'")
+                    os.system("./hud '✅ 自动复制成功' &")
+                    
+                elif action == "mouse_down":
+                    current_event = Quartz.CGEventCreate(None)
+                    current_pos = Quartz.CGEventGetLocation(current_event)
+                    event = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, (current_pos.x, current_pos.y), Quartz.kCGMouseButtonLeft)
+                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
+                    
+                elif action == "mouse_up":
+                    current_event = Quartz.CGEventCreate(None)
+                    current_pos = Quartz.CGEventGetLocation(current_event)
+                    event = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (current_pos.x, current_pos.y), Quartz.kCGMouseButtonLeft)
+                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
+                    
+                elif action == "mouse_drag":
+                    dx = cmd.get("dx", 0)
+                    dy = cmd.get("dy", 0)
+                    
+                    current_event = Quartz.CGEventCreate(None)
+                    current_pos = Quartz.CGEventGetLocation(current_event)
+                    new_x = current_pos.x + dx
+                    new_y = current_pos.y + dy
+                    
+                    event = Quartz.CGEventCreateMouseEvent(
+                        None, 
+                        Quartz.kCGEventLeftMouseDragged, 
+                        (new_x, new_y), 
+                        Quartz.kCGMouseButtonLeft
+                    )
+                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
+                    
+                elif action == "move":
                     dx = cmd.get("dx", 0)
                     dy = cmd.get("dy", 0)
                     
@@ -90,6 +123,30 @@ async def websocket_endpoint(websocket: WebSocket):
                         mouse_up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventRightMouseUp, (current_pos.x, current_pos.y), Quartz.kCGMouseButtonRight)
                         Quartz.CGEventPost(Quartz.kCGHIDEventTap, mouse_down)
                         Quartz.CGEventPost(Quartz.kCGHIDEventTap, mouse_up)
+                        
+                elif action == "triple_click":
+                    current_event = Quartz.CGEventCreate(None)
+                    current_pos = Quartz.CGEventGetLocation(current_event)
+                    
+                    # Quartz needs sequential click states. 
+                    # The first click was already sent by the first tap. 
+                    # Here we send state 2 and then state 3 quickly.
+                    
+                    # Double click state
+                    md2 = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, (current_pos.x, current_pos.y), Quartz.kCGMouseButtonLeft)
+                    Quartz.CGEventSetIntegerValueField(md2, Quartz.kCGMouseEventClickState, 2)
+                    mu2 = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (current_pos.x, current_pos.y), Quartz.kCGMouseButtonLeft)
+                    Quartz.CGEventSetIntegerValueField(mu2, Quartz.kCGMouseEventClickState, 2)
+                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, md2)
+                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, mu2)
+                    
+                    # Triple click state
+                    md3 = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, (current_pos.x, current_pos.y), Quartz.kCGMouseButtonLeft)
+                    Quartz.CGEventSetIntegerValueField(md3, Quartz.kCGMouseEventClickState, 3)
+                    mu3 = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (current_pos.x, current_pos.y), Quartz.kCGMouseButtonLeft)
+                    Quartz.CGEventSetIntegerValueField(mu3, Quartz.kCGMouseEventClickState, 3)
+                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, md3)
+                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, mu3)
                         
                 elif action == "scroll":
                     dy = cmd.get("dy", 0)
@@ -164,6 +221,11 @@ async def websocket_endpoint(websocket: WebSocket):
                         keyboard.press('v')
                         keyboard.release('v')
                         keyboard.release(Key.cmd)
+                        
+                        # Auto Enter
+                        time.sleep(0.1)
+                        keyboard.press(Key.enter)
+                        keyboard.release(Key.enter)
                         
             except json.JSONDecodeError:
                 logger.error("Invalid JSON received.")

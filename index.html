@@ -402,6 +402,19 @@
         let lastTouchTime = 0;
         let isMoved = false;
         let isThreeFingerSwiped = false; 
+        let dragTimer = null;
+        let isDragging = false;
+        let lastTapTime = 0;
+        let isDoubleTap = false;
+
+        function triggerAutoCopy() {
+            setTimeout(() => {
+                sendCmd({ action: 'auto_copy' });
+                if (navigator.vibrate) navigator.vibrate([15, 30, 15]);
+                hintText.textContent = "已自动复制文本";
+                setTimeout(() => { hintText.textContent = ""; }, 2000);
+            }, 200);
+        }
 
         trackpad.addEventListener('touchstart', (e) => {
             e.preventDefault(); 
@@ -411,12 +424,39 @@
             
             if (e.touches.length === 1) {
                 lastTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                
+                const currentTime = new Date().getTime();
+                const tapLength = currentTime - lastTapTime;
+                if (tapLength < 300 && tapLength > 0) {
+                    isDoubleTap = true;
+                    sendCmd({ action: 'triple_click' });
+                    triggerAutoCopy();
+                } else {
+                    isDoubleTap = false;
+                }
+                lastTapTime = currentTime;
+
+                dragTimer = setTimeout(() => {
+                    isDragging = true;
+                    if (navigator.vibrate) navigator.vibrate([10, 30, 10]);
+                    sendCmd({ action: 'mouse_down' });
+                }, 500);
             } else if (e.touches.length === 2) {
+                clearTimeout(dragTimer);
+                if (isDragging) {
+                    sendCmd({ action: 'mouse_up' });
+                    isDragging = false;
+                }
                 lastTouch = { 
                     x: (e.touches[0].clientX + e.touches[1].clientX) / 2, 
                     y: (e.touches[0].clientY + e.touches[1].clientY) / 2 
                 };
             } else if (e.touches.length === 3) {
+                clearTimeout(dragTimer);
+                if (isDragging) {
+                    sendCmd({ action: 'mouse_up' });
+                    isDragging = false;
+                }
                 lastTouch = { 
                     x: (e.touches[0].clientX + e.touches[1].clientX + e.touches[2].clientX) / 3, 
                     y: (e.touches[0].clientY + e.touches[1].clientY + e.touches[2].clientY) / 3 
@@ -429,13 +469,18 @@
             if (!lastTouch) return;
             
             isMoved = true;
+            clearTimeout(dragTimer);
             
             if (e.touches.length === 1) {
                 const currentTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
                 const dx = currentTouch.x - lastTouch.x;
                 const dy = currentTouch.y - lastTouch.y;
                 const sensitivity = 1.6; 
-                sendCmd({ action: 'move', dx: dx * sensitivity, dy: dy * sensitivity });
+                if (isDragging) {
+                    sendCmd({ action: 'mouse_drag', dx: dx * sensitivity, dy: dy * sensitivity });
+                } else {
+                    sendCmd({ action: 'move', dx: dx * sensitivity, dy: dy * sensitivity });
+                }
                 lastTouch = currentTouch;
                 
             } else if (e.touches.length === 2) {
@@ -481,20 +526,32 @@
 
         trackpad.addEventListener('touchend', (e) => {
             e.preventDefault();
+            clearTimeout(dragTimer);
             const touchDuration = Date.now() - lastTouchTime;
             
-            if (!isMoved && !isThreeFingerSwiped) {
-                if (touchDuration < 300) {
-                    if (e.changedTouches.length === 1 && e.touches.length === 0) {
-                        sendCmd({ action: 'click', button: 'left' });
-                        if (navigator.vibrate) navigator.vibrate(15);
-                    } else if (e.changedTouches.length === 2 || (e.changedTouches.length === 1 && e.touches.length === 1)) {
+            if (isDragging) {
+                isDragging = false;
+                sendCmd({ action: 'mouse_up' });
+                if (navigator.vibrate) navigator.vibrate(15);
+                triggerAutoCopy();
+            } else {
+                if (!isMoved && !isThreeFingerSwiped) {
+                    if (touchDuration < 500) {
+                        if (e.changedTouches.length === 1 && e.touches.length === 0) {
+                            if (!isDoubleTap) {
+                                sendCmd({ action: 'click', button: 'left' });
+                                if (navigator.vibrate) navigator.vibrate(15);
+                            } else {
+                                isDoubleTap = false;
+                            }
+                        } else if (e.changedTouches.length === 2 || (e.changedTouches.length === 1 && e.touches.length === 1)) {
+                            sendCmd({ action: 'click', button: 'right' });
+                            if (navigator.vibrate) navigator.vibrate(15);
+                        }
+                    } else if (touchDuration >= 500 && e.changedTouches.length === 1 && e.touches.length === 0) {
                         sendCmd({ action: 'click', button: 'right' });
                         if (navigator.vibrate) navigator.vibrate(15);
                     }
-                } else if (touchDuration >= 300 && e.changedTouches.length === 1 && e.touches.length === 0) {
-                    sendCmd({ action: 'click', button: 'right' });
-                    if (navigator.vibrate) navigator.vibrate(15);
                 }
             }
             
@@ -509,6 +566,16 @@
                     y: (e.touches[0].clientY + e.touches[1].clientY) / 2 
                 };
             }
+        }, { passive: false });
+
+        trackpad.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            clearTimeout(dragTimer);
+            if (isDragging) {
+                isDragging = false;
+                sendCmd({ action: 'mouse_up' });
+            }
+            lastTouch = null;
         }, { passive: false });
 
         // --- Button Controls ---

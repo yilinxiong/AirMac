@@ -167,6 +167,8 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device
                         (new_x, new_y), 
                         Quartz.kCGMouseButtonLeft
                     )
+                    Quartz.CGEventSetIntegerValueField(event, Quartz.kCGMouseEventDeltaX, int(dx))
+                    Quartz.CGEventSetIntegerValueField(event, Quartz.kCGMouseEventDeltaY, int(dy))
                     Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
                     
                 elif action == "move":
@@ -184,6 +186,8 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device
                         (new_x, new_y), 
                         Quartz.kCGMouseButtonLeft
                     )
+                    Quartz.CGEventSetIntegerValueField(event, Quartz.kCGMouseEventDeltaX, int(dx))
+                    Quartz.CGEventSetIntegerValueField(event, Quartz.kCGMouseEventDeltaY, int(dy))
                     Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
                     
                 elif action == "click":

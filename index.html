@@ -419,7 +419,7 @@
                     const data = JSON.parse(event.data);
                     if (data.type === 'copy_success') {
                         if (navigator.vibrate) navigator.vibrate([15, 30, 15]);
-                        hintText.textContent = "已复制: " + data.preview;
+                        hintText.textContent = "复制成功";
                         setTimeout(() => { hintText.textContent = ""; }, 2000);
                     }
                 } catch (e) {

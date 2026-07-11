@@ -168,8 +168,33 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device
                 action = cmd.get("action")
                 
                 if action == "auto_copy":
+                    # 1. 备份当前剪贴板
+                    old_clipboard = pyperclip.paste()
+                
+                    # 2. 清空剪贴板 (写入空字符串)
+                    pyperclip.copy('')
+                
+                    # 3. 模拟 Cmd + C
                     os.system("osascript -e 'tell application \"System Events\" to keystroke \"c\" using command down'")
-                    os.system("./hud '✅ 自动复制成功' &")
+                
+                    # 4. 等待 0.15 秒让系统完成复制
+                    time.sleep(0.15)
+                
+                    # 5. 嗅探剪贴板
+                    new_clipboard = pyperclip.paste()
+                
+                    if not new_clipboard or new_clipboard == '':
+                        # 挥空了 (没有选中任何文字)：恢复旧的剪贴板内容
+                        if old_clipboard:
+                            pyperclip.copy(old_clipboard)
+                    else:
+                        # 成功抓取到新文字：发送成功信号给前端 (可选附带抓取到的文字前20个字符)
+                        success_msg = {
+                            "type": "copy_success", 
+                            "preview": new_clipboard[:20] + "..." if len(new_clipboard) > 20 else new_clipboard
+                        }
+                        await websocket.send_text(json.dumps(success_msg))
+                        os.system("./hud '✅ 自动复制成功' &")
                     
                 elif action == "mouse_down":
                     current_event = Quartz.CGEventCreate(None)

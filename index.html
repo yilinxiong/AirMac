@@ -414,6 +414,18 @@
             ws.onerror = (err) => {
                 console.error("WebSocket Error:", err);
             };
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'copy_success') {
+                        if (navigator.vibrate) navigator.vibrate([15, 30, 15]);
+                        hintText.textContent = "已复制: " + data.preview;
+                        setTimeout(() => { hintText.textContent = ""; }, 2000);
+                    }
+                } catch (e) {
+                    console.error("Error parsing message:", e);
+                }
+            };
         }
 
         connect();
@@ -438,9 +450,6 @@
         function triggerAutoCopy() {
             setTimeout(() => {
                 sendCmd({ action: 'auto_copy' });
-                if (navigator.vibrate) navigator.vibrate([15, 30, 15]);
-                hintText.textContent = "已自动复制文本";
-                setTimeout(() => { hintText.textContent = ""; }, 2000);
             }, 200);
         }
 

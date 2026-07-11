@@ -144,13 +144,13 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device
                     current_event = Quartz.CGEventCreate(None)
                     current_pos = Quartz.CGEventGetLocation(current_event)
                     event = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, (current_pos.x, current_pos.y), Quartz.kCGMouseButtonLeft)
-                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
+                    Quartz.CGEventPost(Quartz.kCGSessionEventTap, event)
                     
                 elif action == "mouse_up":
                     current_event = Quartz.CGEventCreate(None)
                     current_pos = Quartz.CGEventGetLocation(current_event)
                     event = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (current_pos.x, current_pos.y), Quartz.kCGMouseButtonLeft)
-                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
+                    Quartz.CGEventPost(Quartz.kCGSessionEventTap, event)
                     
                 elif action == "mouse_drag":
                     dx = cmd.get("dx", 0)
@@ -169,7 +169,7 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device
                     )
                     Quartz.CGEventSetIntegerValueField(event, Quartz.kCGMouseEventDeltaX, int(dx))
                     Quartz.CGEventSetIntegerValueField(event, Quartz.kCGMouseEventDeltaY, int(dy))
-                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
+                    Quartz.CGEventPost(Quartz.kCGSessionEventTap, event)
                     
                 elif action == "move":
                     dx = cmd.get("dx", 0)
@@ -188,7 +188,7 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device
                     )
                     Quartz.CGEventSetIntegerValueField(event, Quartz.kCGMouseEventDeltaX, int(dx))
                     Quartz.CGEventSetIntegerValueField(event, Quartz.kCGMouseEventDeltaY, int(dy))
-                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
+                    Quartz.CGEventPost(Quartz.kCGSessionEventTap, event)
                     
                 elif action == "click":
                     button = cmd.get("button", "left")
@@ -198,13 +198,13 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device
                     if button == "left":
                         mouse_down = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, (current_pos.x, current_pos.y), Quartz.kCGMouseButtonLeft)
                         mouse_up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (current_pos.x, current_pos.y), Quartz.kCGMouseButtonLeft)
-                        Quartz.CGEventPost(Quartz.kCGHIDEventTap, mouse_down)
-                        Quartz.CGEventPost(Quartz.kCGHIDEventTap, mouse_up)
+                        Quartz.CGEventPost(Quartz.kCGSessionEventTap, mouse_down)
+                        Quartz.CGEventPost(Quartz.kCGSessionEventTap, mouse_up)
                     elif button == "right":
                         mouse_down = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventRightMouseDown, (current_pos.x, current_pos.y), Quartz.kCGMouseButtonRight)
                         mouse_up = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventRightMouseUp, (current_pos.x, current_pos.y), Quartz.kCGMouseButtonRight)
-                        Quartz.CGEventPost(Quartz.kCGHIDEventTap, mouse_down)
-                        Quartz.CGEventPost(Quartz.kCGHIDEventTap, mouse_up)
+                        Quartz.CGEventPost(Quartz.kCGSessionEventTap, mouse_down)
+                        Quartz.CGEventPost(Quartz.kCGSessionEventTap, mouse_up)
                         
                 elif action == "triple_click":
                     current_event = Quartz.CGEventCreate(None)
@@ -219,22 +219,22 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device
                     Quartz.CGEventSetIntegerValueField(md2, Quartz.kCGMouseEventClickState, 2)
                     mu2 = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (current_pos.x, current_pos.y), Quartz.kCGMouseButtonLeft)
                     Quartz.CGEventSetIntegerValueField(mu2, Quartz.kCGMouseEventClickState, 2)
-                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, md2)
-                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, mu2)
+                    Quartz.CGEventPost(Quartz.kCGSessionEventTap, md2)
+                    Quartz.CGEventPost(Quartz.kCGSessionEventTap, mu2)
                     
                     # Triple click state
                     md3 = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseDown, (current_pos.x, current_pos.y), Quartz.kCGMouseButtonLeft)
                     Quartz.CGEventSetIntegerValueField(md3, Quartz.kCGMouseEventClickState, 3)
                     mu3 = Quartz.CGEventCreateMouseEvent(None, Quartz.kCGEventLeftMouseUp, (current_pos.x, current_pos.y), Quartz.kCGMouseButtonLeft)
                     Quartz.CGEventSetIntegerValueField(mu3, Quartz.kCGMouseEventClickState, 3)
-                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, md3)
-                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, mu3)
+                    Quartz.CGEventPost(Quartz.kCGSessionEventTap, md3)
+                    Quartz.CGEventPost(Quartz.kCGSessionEventTap, mu3)
                         
                 elif action == "scroll":
                     dy = cmd.get("dy", 0)
                     # Quartz scroll event takes units and values
                     scroll_event = Quartz.CGEventCreateScrollWheelEvent(None, Quartz.kCGScrollEventUnitPixel, 1, int(-dy))
-                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, scroll_event)
+                    Quartz.CGEventPost(Quartz.kCGSessionEventTap, scroll_event)
                                         
                 elif action == "type":
                     char = cmd.get("char", "")

@@ -287,7 +287,14 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device
                     os.system("pmset displaysleepnow")
                     
                 elif action == "wake_watch":
-                    os.system("caffeinate -u -t 2")
+                    # 在后台运行 caffeinate 以免阻塞 WebSocket
+                    # -u 会点亮屏幕，但不带有持续时间，我们让它瞬间完成即可，真正的防休眠靠后面的模拟按键
+                    os.system("caffeinate -u -t 1 &")
+                    
+                    # 模拟一次无害的按键操作 (Shift)，向 macOS 注册真实的 HID 硬件交互
+                    # 这样可以打破“软件唤醒如果没有硬件交互，几秒后自动退回睡眠”的机制
+                    keyboard.press(Key.shift)
+                    keyboard.release(Key.shift)
 
                 elif action == "type_text":
                     text = cmd.get("text", "")

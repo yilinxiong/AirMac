@@ -8,8 +8,8 @@ import time
 import Quartz
 import ipaddress
 import asyncio
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, Response
+from fastapi.responses import HTMLResponse, FileResponse
 from pynput.keyboard import Controller as KeyboardController, Key
 
 app = FastAPI()
@@ -120,13 +120,22 @@ async def prompt_for_approval(device_id: str, device_name: str) -> bool:
 
 
 @app.get("/")
-async def get_index(request: Request):
+async def get_frontend(request: Request):
     if not is_allowed_ip(request.client.host):
-        raise HTTPException(status_code=403, detail="Access Forbidden: Local network only.")
+        logger.warning(f"Rejected access from non-local IP: {request.client.host}")
+        raise HTTPException(status_code=403, detail="Access denied: Only local network allowed")
         
-    with open("index.html", "r", encoding="utf-8") as f:
+    html_file = os.path.join(os.path.dirname(__file__), "index.html")
+    with open(html_file, "r") as f:
         html_content = f.read()
     return HTMLResponse(content=html_content)
+
+@app.get("/icon.png")
+async def get_icon():
+    icon_path = os.path.join(os.path.dirname(__file__), "icon.png")
+    if os.path.exists(icon_path):
+        return FileResponse(icon_path)
+    return Response(status_code=404)
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device_name: str = "未知设备"):

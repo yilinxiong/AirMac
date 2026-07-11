@@ -390,14 +390,16 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device
                     if text:
                         pyperclip.copy(text)
                         # Slight delay to ensure clipboard is ready
-                        time.sleep(0.1)
+                        time.sleep(0.15)
                         keyboard.press(Key.cmd)
                         keyboard.press('v')
                         keyboard.release('v')
                         keyboard.release(Key.cmd)
                         
-                        # Auto Enter
-                        time.sleep(0.1)
+                        # Auto Enter: Wait longer for long texts so Mac has time to render/paste
+                        paste_delay = min(0.8, 0.15 + (len(text) * 0.005))
+                        time.sleep(paste_delay)
+                        
                         keyboard.press(Key.enter)
                         keyboard.release(Key.enter)
                         

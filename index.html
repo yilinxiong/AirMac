@@ -244,9 +244,13 @@
 
         #hidden-input {
             position: absolute;
-            top: -1000px;
-            left: -1000px;
+            top: 0;
+            left: 0;
+            width: 1px;
+            height: 1px;
             opacity: 0;
+            pointer-events: none;
+            z-index: -1;
         }
     </style>
 </head>
@@ -666,8 +670,13 @@
         const hiddenInput = document.getElementById('hidden-input');
         const keyboardTrigger = document.getElementById('keyboard-trigger');
 
+        keyboardTrigger.addEventListener('touchend', (e) => {
+            e.preventDefault(); // Prevent double click event
+            hiddenInput.focus();
+            if (navigator.vibrate) navigator.vibrate(15);
+        });
+        
         keyboardTrigger.addEventListener('click', (e) => {
-            e.preventDefault();
             hiddenInput.focus();
             if (navigator.vibrate) navigator.vibrate(15);
         });

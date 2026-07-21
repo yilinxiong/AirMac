@@ -377,13 +377,17 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device
                     
                 elif action == "wake_watch":
                     # 在后台运行 caffeinate 以免阻塞 WebSocket
-                    # -u 会点亮屏幕，但不带有持续时间，我们让它瞬间完成即可，真正的防休眠靠后面的模拟按键
-                    os.system("caffeinate -u -t 1 &")
-                    
-                    # 模拟一次无害的按键操作 (Shift)，向 macOS 注册真实的 HID 硬件交互
-                    # 这样可以打破“软件唤醒如果没有硬件交互，几秒后自动退回睡眠”的机制
-                    keyboard.press(Key.shift)
-                    keyboard.release(Key.shift)
+                    # 延时多次发送 shift 按键，彻底打破 macOS 休眠防误触机制 (Dark Wake)
+                    async def perform_wake():
+                        os.system("caffeinate -u -t 3 &")
+                        await asyncio.sleep(0.5)
+                        keyboard.press(Key.shift)
+                        keyboard.release(Key.shift)
+                        await asyncio.sleep(1.5)
+                        keyboard.press(Key.shift)
+                        keyboard.release(Key.shift)
+                        
+                    asyncio.create_task(perform_wake())
 
                 elif action == "type_text":
                     text = cmd.get("text", "")

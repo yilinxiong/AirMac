@@ -19,7 +19,7 @@ keyboard = KeyboardController()
 
 # Set up basic logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("MacRemote")
+logger = logging.getLogger("AirPad")
 
 def get_local_ip():
     try:
@@ -38,7 +38,7 @@ PORT = 8000
 @app.on_event("startup")
 async def startup_event():
     print("\n" + "="*50)
-    print("🚀 Mac Remote Controller Server Started!")
+    print("🚀 AirPad Server Started!")
     print("📱 Please open Safari on your iPhone and access:")
     print(f"👉 http://{LOCAL_IP}:{PORT} 👈")
     print("="*50 + "\n")
@@ -105,7 +105,7 @@ async def prompt_for_approval(device_id: str, device_name: str) -> bool:
         script = f'''
         tell application "System Events"
             activate
-            display dialog "新设备 [{device_name}] 请求连接 Mac Remote Controller\\n\\n是否允许该设备控制本机？" buttons {{"拒绝", "允许"}} default button "拒绝" with title "安全拦截"
+            display dialog "新设备 [{device_name}] 请求连接 AirPad\\n\\n是否允许该设备控制本机？" buttons {{"拒绝", "允许"}} default button "拒绝" with title "安全拦截"
         end tell
         '''
         process = await asyncio.create_subprocess_exec(

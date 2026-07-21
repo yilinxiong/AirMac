@@ -1,7 +1,7 @@
-# AirPad 📱💻
+# AirMac 📱💻
 
 <p align="center">
-  <img src="icon.png" width="150" alt="AirPad Icon">
+  <img src="icon.png" width="150" alt="AirMac Icon">
 </p>
 
 [English](#english) | [中文说明](#chinese)
@@ -35,8 +35,8 @@ Turn your iPhone into a premium, low-latency Magic Trackpad and Keyboard for you
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/yourusername/airpad.git
-   cd airpad
+   git clone https://github.com/yourusername/airmac.git
+   cd airmac
    ```
 2. **Set up Python Environment:**
    ```bash
@@ -86,8 +86,8 @@ Turn your iPhone into a premium, low-latency Magic Trackpad and Keyboard for you
 
 1. **克隆项目到本地：**
    ```bash
-   git clone https://github.com/yourusername/airpad.git
-   cd airpad
+   git clone https://github.com/yourusername/airmac.git
+   cd airmac
    ```
 2. **配置 Python 环境：**
    ```bash

@@ -1,74 +1,109 @@
-# iPhone Mac Remote Controller
+# Mac Remote Controller 📱💻
 
-这是一套完整的局域网远程控制方案，允许您通过 iPhone Safari 浏览器控制 Mac 的鼠标和键盘。基于 macOS 原生的 CoreGraphics (Quartz) 引擎打造，支持多显示器无缝切换，并提供类似原生妙控板的手势体验。
+<p align="center">
+  <img src="icon.png" width="150" alt="Mac Remote Icon">
+</p>
 
-## 1. 环境配置
+[English](#english) | [中文说明](#chinese)
 
-打开 macOS 的 Terminal (终端)，执行以下命令初始化项目环境：
+---
 
-```bash
-# 1. 进入项目目录
-cd "/Users/yilinxiong/Coding/Mac Remote Controller/iphone_mac_remote"
+<a name="english"></a>
+## 🚀 English
 
-# 2. 创建 Python 虚拟环境
-python3 -m venv venv
+Turn your iPhone into a premium, low-latency Magic Trackpad and Keyboard for your Mac. Completely wireless, highly secure, and extremely responsive.
 
-# 3. 激活虚拟环境
-source venv/bin/activate
+### ✨ Features
+- **Immersive PWA Experience**: Add it to your iPhone's home screen for a full-screen, app-like experience with a custom signature icon.
+- **Precision Trackpad**: Built on macOS native Quartz engine for pixel-perfect tracking and physical screen edge boundaries.
+- **Smart Gestures**:
+  - 1 Finger Move: Move Cursor
+  - 1 Finger Tap: Left Click
+  - 2 Fingers Tap: Right Click
+  - 2 Fingers Scroll: Scroll up/down
+  - 3 Fingers Swipe Left/Right: Switch Desktops
+  - 3 Fingers Swipe Up: Mission Control
+  - **Long Press (500ms)**: Drag windows or select text (with dual haptic feedback).
+- **Smart Clipboard**: Automatically executes `Cmd + C` when you double-click or drag-select text. Features a blazing-fast clipboard sniffing mechanism: your phone vibrates *only* when text is successfully copied, and your Mac displays a sleek, native-like HUD confirmation.
+- **Keyboard & Text Projection**: Use your phone's native keyboard to type, or project long paragraphs of text directly to your Mac in a single tap.
+- **Media & Power Controls**: Play/Pause media, switch Full-screen, put Mac display to Sleep, or Wake it up remotely.
+- **Enterprise-Grade Security**: 
+  - **Local Network Only**: Strictly blocks external IP access.
+  - **Device Authorization**: New devices must be physically approved via a pop-up dialog on your Mac screen before gaining control.
 
-# 4. 安装所需的依赖库
-pip install -r requirements.txt
-```
+### 🛠 Installation
 
-## 2. ⚠️ 最重要的授权步骤 (必做)
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/yourusername/mac-remote-controller.git
+   cd mac-remote-controller
+   ```
+2. **Set up Python Environment:**
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
+3. **Grant Accessibility Permissions:**
+   - Go to `System Settings` > `Privacy & Security` > `Accessibility`
+   - Add and enable your `Terminal` or `iTerm` (or `bash`/`python` if running as a background service).
+4. **Run the Server:**
+   - **Debug Mode:** `uvicorn main:app --host 0.0.0.0 --port 8000`
+   - **Background Service (Recommended):** Run `./install_service.sh` to install it as a macOS LaunchAgent (auto-starts on boot).
 
-由于本脚本需要模拟鼠标和键盘，macOS 的安全机制会默认拦截。**如果不授权，鼠标和键盘将无法响应。**
+### 📱 How to Use
+1. Ensure your iPhone and Mac are on the same Wi-Fi network.
+2. Open Safari on your iPhone and navigate to the IP address printed in the terminal (e.g., `http://192.168.x.x:8000`).
+3. **Highly Recommended**: Tap the `Share` button in Safari and select `Add to Home Screen`. 
+4. The first time you connect, your Mac will prompt an authorization dialog. Click "Allow" to grant your phone access.
 
-> **🔒 隐私与安全性保障：**
-> 本项目已内置**局域网 IP 白名单过滤**和**新设备指纹授权拦截**。只有处于同一局域网下的设备，且在首次连接时得到 Mac 本机的弹窗授权（“允许该设备控制本机”）后，其浏览器独立 Device ID 才会被加入 `whitelist.json` 中获得控制权。所有未经授权的公网或局域网设备都将被自动阻断，保障电脑安全。
+---
 
-1. 打开 macOS 的 **系统设置** (System Settings)。
-2. 导航到 **隐私与安全性** (Privacy & Security)。
-3. 点击 **辅助功能** (Accessibility)。
-4. 如果你在 Terminal (终端) 中运行此脚本，请打开 **Terminal** 或 **iTerm** 前面的开关。如果你将其作为后台服务运行，可能需要给 `bash` 或相关 Python 执行器授权。
-   *(如果列表中没有你需要授权的应用，请点击底部的 `+` 号，手动添加该应用并开启)*。
+<a name="chinese"></a>
+## 🚀 中文说明
 
-## 3. 运行服务器
+将你的 iPhone 变成一块极致流畅、低延迟的高级 Mac 触控板和键盘。完全无线，极其安全。
 
-你可以选择以下两种方式之一来运行服务器：
+### ✨ 核心功能
+- **沉浸式 PWA 体验**：将网页“添加到主屏幕”，即可获得全屏无边框的 App 级体验，以及极具艺术感的专属签名图标。
+- **高精度触控板**：采用原生 Quartz 引擎，拥有完美的物理边缘拦截，光标绝不会飞出屏幕。
+- **智能手势支持**：
+  - 单指移动：移动光标
+  - 单指轻点：左键单击
+  - 双指轻点：右键单击
+  - 双指滑动：页面上下滚动
+  - 三指左右滑动：切换桌面
+  - 三指上滑：调度中心 (Mission Control)
+  - **长按 (500ms)**：伴随双震动反馈后即可拖拽窗口或框选文字，松手完成。
+- **极速智能复制**：当你双击或者拖拽框选结束时，Mac 会自动执行 `Cmd + C`。内置剪贴板嗅探，只有当你真正成功抓取到新文字时，手机端才会给出震动反馈，且 Mac 会在光标处弹出优雅的原生悬浮窗 (HUD) 提示“已复制”。
+- **键盘与长文本投射**：可以直接使用手机全键盘输入，或在文本框内粘贴大段长文本（中英文皆可），一键瞬间粘贴投射到 Mac 上。
+- **媒体与系统控制**：快捷播放/暂停媒体、切换全屏、让 Mac 息屏，或是远程唤醒 Mac（已完美解决 macOS 唤醒秒睡机制）。
+- **极客级安全防护**：
+  - **内网物理隔离**：底层代码严格限制，拒绝任何非局域网 IP 访问。
+  - **白名单设备授权**：首次连接的陌生手机，Mac 屏幕中央会弹出系统级确认框，只有你亲自点击“允许”，手机才能获得控制权。
 
-### 方式一：临时运行（调试用）
-确保你已经在终端中激活了虚拟环境 (`source venv/bin/activate`)，然后运行：
-```bash
-uvicorn main:app --host 0.0.0.0 --port 8000
-```
-服务器启动后，会在终端中打印出一个带 IP 的网址，例如 `http://192.168.x.x:8000`。
+### 🛠 安装指南
 
-### 方式二：安装为后台常驻服务（推荐）
-我们提供了一键安装脚本，可以让服务开机自启并静默在后台运行。
-```bash
-./install_service.sh
-```
-若需查看后台日志：`tail -f remote.log`
-若需卸载后台服务：`./uninstall_service.sh`
+1. **克隆项目到本地：**
+   ```bash
+   git clone https://github.com/yourusername/mac-remote-controller.git
+   cd mac-remote-controller
+   ```
+2. **配置 Python 环境：**
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
+3. **授予辅助功能权限：**
+   - 进入 `系统设置` > `隐私与安全性` > `辅助功能`
+   - 为你当前使用的 `Terminal` (终端) 或 `iTerm` 开启权限。
+4. **启动服务：**
+   - **临时运行 (调试用):** `uvicorn main:app --host 0.0.0.0 --port 8000`
+   - **后台常驻服务 (推荐):** 运行 `./install_service.sh`，这会让脚本作为 Mac 的底层守护进程在后台静默运行，且开机自启。
 
-## 4. 手机连接与操作
-
-1. 确保您的 iPhone 和 Mac 连接在 **同一个局域网 (Wi-Fi)**。
-2. 打开 iPhone 的 Safari 浏览器，输入刚才终端中显示的 URL。
-3. **建议**：点击 Safari 底部中间的分享按钮，选择“**添加到主屏幕**”。本项目已支持 PWA (Progressive Web App)，添加后你将获得一个带有精致毛玻璃光标图标、**完全无边框的全屏沉浸式 App 体验**！
-
-### 🖱️ 触控板操作指南：
-- **移动光标**：单指滑动。（采用原生 Quartz 引擎，支持多屏幕且**拥有完美的物理边缘拦截**，光标绝不会飞出屏幕。*注：由于完美边缘拦截限制了绝对坐标的越界，因此无法通过撞击边缘呼出隐藏的 Dock 栏*）
-- **左键单击**：单指轻点。
-- **右键单击**：双指轻点。
-- **长按拖拽**：单指**长按 500ms** (伴随双震动反馈) 后即可拖拽窗口或框选文字。松手完成拖拽。
-- **智能复制**：**双击** (自动执行系统级三击，选中当前整行) 或 **拖拽框选结束** 时，Mac 会自动执行 `Cmd + C` 进行复制。由于内置了**极速剪贴板嗅探机制**，只有当你真正选中并成功抓取到新文字时，手机端才会给出干脆的震动反馈和 Toast 提示，且 Mac 会在当前光标处弹出优雅的原生悬浮窗 (HUD) 提示“已复制”。如果“挥空了”，剪贴板原有的内容会被无缝还原。
-- **页面滚动**：双指上下滑动。
-- **切换桌面**：三指左右滑动。
-- **调度中心 (Mission Control)**：三指上滑。
-
-### ⌨️ 功能与快捷键：
-- **键盘输入**：点击顶部“⌨️ 键盘”按钮，调出手机键盘输入英文字符。
-- **文本投射**：在底部的输入框内输入长段文本（中英文皆可），点击发送按钮将一键粘贴到 Mac 上。
-- **媒体与系统快捷键**：顶部提供了媒体播放/暂停、Mac 全屏切换、息屏 (Sleep) 以及 唤醒 (Wake) 的快捷按钮。
+### 📱 手机连接方法
+1. 确保你的 iPhone 和 Mac 连在**同一个 Wi-Fi 局域网**。
+2. 打开 iPhone 的 Safari 浏览器，输入终端打印出来的网址（例如 `http://192.168.x.x:8000`）。
+3. **强烈建议**：点击 Safari 底部中间的分享按钮，选择“**添加到主屏幕**”。
+4. 首次访问时，Mac 屏幕会弹出设备授权提示，点击“允许”即可开始尽情操控！

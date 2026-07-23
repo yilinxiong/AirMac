@@ -184,10 +184,11 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device
                     pyperclip.copy('')
                 
                     # 3. 模拟 Cmd + C
-                    os.system("osascript -e 'tell application \"System Events\" to keystroke \"c\" using command down'")
+                    process = await asyncio.create_subprocess_exec("osascript", "-e", 'tell application "System Events" to keystroke "c" using command down')
+                    await process.wait()
                 
                     # 4. 等待 0.15 秒让系统完成复制
-                    time.sleep(0.15)
+                    await asyncio.sleep(0.15)
                 
                     # 5. 嗅探剪贴板
                     new_clipboard = pyperclip.paste()
@@ -353,15 +354,18 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device
                 # --- New Features: Multitasking & Desktop Management ---
                 elif action == "mission_control":
                     # Use AppleScript for Mission Control (more reliable than pynput)
-                    subprocess.run(["osascript", "-e", 'tell application "System Events" to key code 126 using control down'])
+                    process = await asyncio.create_subprocess_exec("osascript", "-e", 'tell application "System Events" to key code 126 using control down')
+                    await process.wait()
 
                 elif action == "space_left":
                     # Use AppleScript to switch to left desktop
-                    subprocess.run(["osascript", "-e", 'tell application "System Events" to key code 123 using control down'])
+                    process = await asyncio.create_subprocess_exec("osascript", "-e", 'tell application "System Events" to key code 123 using control down')
+                    await process.wait()
 
                 elif action == "space_right":
                     # Use AppleScript to switch to right desktop
-                    subprocess.run(["osascript", "-e", 'tell application "System Events" to key code 124 using control down'])
+                    process = await asyncio.create_subprocess_exec("osascript", "-e", 'tell application "System Events" to key code 124 using control down')
+                    await process.wait()
 
                 elif action == "cmd_tab":
                     # Cmd + Tab to switch to previous app
@@ -373,7 +377,8 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device
                 # --- New Features: Sleep & Text Projection ---
                 elif action == "display_sleep":
                     # Use displaysleepnow for light sleep (turns off display only), so wake_watch can still work
-                    os.system("pmset displaysleepnow")
+                    process = await asyncio.create_subprocess_exec("pmset", "displaysleepnow")
+                    await process.wait()
                     
                 elif action == "wake_watch":
                     # 在后台运行 caffeinate 以免阻塞 WebSocket
@@ -394,7 +399,7 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device
                     if text:
                         pyperclip.copy(text)
                         # Slight delay to ensure clipboard is ready
-                        time.sleep(0.15)
+                        await asyncio.sleep(0.15)
                         keyboard.press(Key.cmd)
                         keyboard.press('v')
                         keyboard.release('v')
@@ -402,7 +407,7 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device
                         
                         # Auto Enter: Wait longer for long texts so Mac has time to render/paste
                         paste_delay = min(0.8, 0.15 + (len(text) * 0.005))
-                        time.sleep(paste_delay)
+                        await asyncio.sleep(paste_delay)
                         
                         keyboard.press(Key.enter)
                         keyboard.release(Key.enter)

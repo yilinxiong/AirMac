@@ -252,10 +252,109 @@
             pointer-events: none;
             z-index: -1;
         }
+
+        .pairing-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            box-sizing: border-box;
+            background: rgba(10, 10, 12, 0.72);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+        }
+
+        .pairing-overlay.hidden {
+            display: none;
+        }
+
+        .pairing-card {
+            width: min(100%, 360px);
+            padding: 28px;
+            border-radius: 28px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            background: rgba(36, 36, 40, 0.94);
+            box-shadow: 0 20px 70px rgba(0, 0, 0, 0.45);
+            box-sizing: border-box;
+            text-align: center;
+        }
+
+        .pairing-card h1 {
+            margin: 0 0 10px;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .pairing-card p {
+            margin: 0 0 20px;
+            color: rgba(255, 255, 255, 0.65);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .pairing-card input {
+            width: 100%;
+            margin-bottom: 14px;
+            padding: 14px 16px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 14px;
+            box-sizing: border-box;
+            background: rgba(0, 0, 0, 0.24);
+            color: white;
+            font-size: 17px;
+            text-align: center;
+            outline: none;
+        }
+
+        .pairing-card .hidden {
+            display: none;
+        }
+
+        #pairing-code {
+            font-size: 24px;
+            letter-spacing: 8px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .pairing-card button {
+            width: 100%;
+            padding: 14px 18px;
+            border: 0;
+            border-radius: 14px;
+            background: #0a84ff;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .pairing-card button:disabled {
+            opacity: 0.5;
+        }
+
+        .pairing-error {
+            min-height: 20px;
+            margin-top: 14px;
+            color: #ff6961;
+            font-size: 13px;
+        }
     </style>
 </head>
 <body>
     <canvas id="matrixCanvas"></canvas>
+
+    <div class="pairing-overlay hidden" id="pairing-overlay">
+        <div class="pairing-card">
+            <h1>连接 AirMac</h1>
+            <p id="pairing-description">为这台 iPhone 命名，然后在 Mac 上获取一次性验证码。</p>
+            <input id="pairing-name" type="text" maxlength="40" value="iPhone" placeholder="设备名称" autocomplete="off" />
+            <input id="pairing-code" class="hidden" type="text" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="000000" autocomplete="one-time-code" />
+            <button id="pairing-button" type="button">在 Mac 上显示验证码</button>
+            <div class="pairing-error" id="pairing-error"></div>
+        </div>
+    </div>
 
     <div class="container">
         <!-- Top Controls -->
@@ -374,68 +473,228 @@
                 drops[i]++;
             }
         }
-        setInterval(drawMatrix, 35);
-
-
-        // Setup Device Identity
-        let deviceId = localStorage.getItem('mac_remote_device_id');
-        let deviceName = localStorage.getItem('mac_remote_device_name');
-
-        if (!deviceId) {
-            // Generate simple UUID
-            deviceId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-                return v.toString(16);
-            });
-            localStorage.setItem('mac_remote_device_id', deviceId);
+        let lastMatrixFrame = 0;
+        function animateMatrix(timestamp) {
+            if (!document.hidden && timestamp - lastMatrixFrame >= 35) {
+                drawMatrix();
+                lastMatrixFrame = timestamp;
+            }
+            requestAnimationFrame(animateMatrix);
         }
+        requestAnimationFrame(animateMatrix);
 
-        if (!deviceName) {
-            deviceName = prompt("首次连接：\n请输入这台设备的名称 (例如: iPhone)", "iPhone");
-            if (!deviceName) deviceName = "未知设备";
-            localStorage.setItem('mac_remote_device_name', deviceName);
-        }
 
-        // WebSocket Setup
+        // Secure pairing and authenticated WebSocket setup
+        const credentialKeys = {
+            deviceId: 'airmac_device_id',
+            token: 'airmac_device_token',
+            deviceName: 'airmac_device_name'
+        };
+        let deviceId = localStorage.getItem(credentialKeys.deviceId);
+        let deviceToken = localStorage.getItem(credentialKeys.token);
+        let deviceName = localStorage.getItem(credentialKeys.deviceName) || 'iPhone';
+        let pairingChallengeId = null;
+        let reconnectTimer = null;
+        let shouldReconnect = true;
+        let isPageSuspended = document.hidden;
+
+        // Remove the legacy, client-generated identity. It is intentionally not migrated.
+        localStorage.removeItem('mac_remote_device_id');
+        localStorage.removeItem('mac_remote_device_name');
+
+        const pairingOverlay = document.getElementById('pairing-overlay');
+        const pairingName = document.getElementById('pairing-name');
+        const pairingCode = document.getElementById('pairing-code');
+        const pairingButton = document.getElementById('pairing-button');
+        const pairingDescription = document.getElementById('pairing-description');
+        const pairingError = document.getElementById('pairing-error');
+        pairingName.value = deviceName;
+
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${wsProtocol}//${window.location.host}/ws?device_id=${encodeURIComponent(deviceId)}&device_name=${encodeURIComponent(deviceName)}`;
+        const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
         let ws;
         let isConnected = false;
+        let lastServerActivity = Date.now();
+        let reconnectProbeTimer = null;
         const hintText = document.getElementById('status-text');
         const spinner = document.getElementById('status-spinner');
 
+        function clearCredentials() {
+            deviceId = null;
+            deviceToken = null;
+            localStorage.removeItem(credentialKeys.deviceId);
+            localStorage.removeItem(credentialKeys.token);
+        }
+
+        function showPairing(message = '') {
+            shouldReconnect = false;
+            pairingOverlay.classList.remove('hidden');
+            pairingError.textContent = message;
+            pairingChallengeId = null;
+            pairingName.classList.remove('hidden');
+            pairingCode.classList.add('hidden');
+            pairingCode.value = '';
+            pairingButton.textContent = '在 Mac 上显示验证码';
+            pairingDescription.textContent = '为这台 iPhone 命名，然后在 Mac 上获取一次性验证码。';
+            pairingButton.disabled = false;
+        }
+
+        function hidePairing() {
+            pairingOverlay.classList.add('hidden');
+            shouldReconnect = true;
+        }
+
+        async function responseError(response) {
+            try {
+                const body = await response.json();
+                return body.detail || '请求失败，请稍后重试';
+            } catch (_) {
+                return '请求失败，请稍后重试';
+            }
+        }
+
+        async function startPairing() {
+            const name = pairingName.value.trim();
+            if (!name) {
+                pairingError.textContent = '请输入设备名称';
+                return;
+            }
+            pairingButton.disabled = true;
+            pairingError.textContent = '';
+            try {
+                const response = await fetch('/api/pairing/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_name: name })
+                });
+                if (!response.ok) throw new Error(await responseError(response));
+                const result = await response.json();
+                pairingChallengeId = result.challenge_id;
+                deviceName = name;
+                pairingName.classList.add('hidden');
+                pairingCode.classList.remove('hidden');
+                pairingDescription.textContent = '在 Mac 弹窗中查看 6 位验证码，并在下方输入。';
+                pairingButton.textContent = '完成安全配对';
+                pairingCode.focus();
+            } catch (error) {
+                pairingError.textContent = error.message;
+            } finally {
+                pairingButton.disabled = false;
+            }
+        }
+
+        async function completePairing() {
+            const code = pairingCode.value.replace(/\D/g, '');
+            if (code.length !== 6) {
+                pairingError.textContent = '请输入 6 位验证码';
+                return;
+            }
+            pairingButton.disabled = true;
+            pairingError.textContent = '';
+            try {
+                const response = await fetch('/api/pairing/complete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ challenge_id: pairingChallengeId, code })
+                });
+                if (!response.ok) throw new Error(await responseError(response));
+                const result = await response.json();
+                deviceId = result.device_id;
+                deviceToken = result.token;
+                deviceName = result.device_name;
+                localStorage.setItem(credentialKeys.deviceId, deviceId);
+                localStorage.setItem(credentialKeys.token, deviceToken);
+                localStorage.setItem(credentialKeys.deviceName, deviceName);
+                hidePairing();
+                connect();
+            } catch (error) {
+                pairingError.textContent = error.message;
+                pairingCode.select();
+            } finally {
+                pairingButton.disabled = false;
+            }
+        }
+
+        pairingButton.addEventListener('click', () => {
+            if (pairingChallengeId) completePairing();
+            else startPairing();
+        });
+        pairingCode.addEventListener('input', () => {
+            pairingCode.value = pairingCode.value.replace(/\D/g, '').slice(0, 6);
+        });
+        pairingCode.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') completePairing();
+        });
+
         function connect() {
-            ws = new WebSocket(wsUrl);
-            ws.onopen = () => {
-                isConnected = true;
-                hintText.textContent = "";
-                spinner.style.display = 'none';
+            if (isPageSuspended || document.hidden) return;
+            if (!deviceId || !deviceToken) {
+                showPairing();
+                return;
+            }
+            if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+                return;
+            }
+            clearTimeout(reconnectTimer);
+            clearTimeout(reconnectProbeTimer);
+            shouldReconnect = true;
+            isConnected = false;
+            hintText.textContent = '连接中...';
+            spinner.style.display = 'block';
+            const socket = new WebSocket(wsUrl);
+            ws = socket;
+            socket.onopen = () => {
+                lastServerActivity = Date.now();
+                socket.send(JSON.stringify({
+                    type: 'authenticate',
+                    device_id: deviceId,
+                    token: deviceToken
+                }));
             };
-            ws.onclose = (e) => {
+            socket.onclose = (e) => {
+                if (ws !== socket) return;
+                ws = null;
                 isConnected = false;
-                if (e.code === 4003) { // Rejected by Mac
-                    hintText.textContent = "连接已被 Mac 拒绝";
+                clearTimeout(reconnectProbeTimer);
+                if (e.code === 4003) {
+                    clearCredentials();
                     spinner.style.display = 'none';
-                } else if (e.code === 4001) { // Waiting for prompt
-                    hintText.textContent = "正在等待 Mac 端授权...";
+                    showPairing('设备凭据已失效，请重新配对');
+                } else if (e.code === 4009) {
+                    hintText.textContent = '另一台设备正在控制 Mac';
                     spinner.style.display = 'block';
-                    setTimeout(connect, 3000);
-                } else {
+                    scheduleReconnect(3000);
+                } else if (e.code === 4010) {
+                    shouldReconnect = false;
+                    hintText.textContent = '连接已被这台设备的新会话替换';
+                    spinner.style.display = 'none';
+                } else if (shouldReconnect) {
                     hintText.textContent = "断开连接，重连中...";
                     spinner.style.display = 'block';
-                    setTimeout(connect, 2000);
+                    scheduleReconnect(2000);
                 }
             };
-            ws.onerror = (err) => {
+            socket.onerror = (err) => {
                 console.error("WebSocket Error:", err);
             };
-            ws.onmessage = (event) => {
+            socket.onmessage = (event) => {
                 try {
+                    if (ws !== socket) return;
+                    lastServerActivity = Date.now();
                     const data = JSON.parse(event.data);
-                    if (data.type === 'copy_success') {
+                    if (data.type === 'auth_ok') {
+                        isConnected = true;
+                        hintText.textContent = '';
+                        spinner.style.display = 'none';
+                    } else if (data.type === 'auth_failed') {
+                        shouldReconnect = false;
+                        clearCredentials();
+                    } else if (data.type === 'copy_success') {
                         if (navigator.vibrate) navigator.vibrate([15, 30, 15]);
                         hintText.textContent = "复制成功";
                         setTimeout(() => { hintText.textContent = ""; }, 2000);
+                    } else if (data.type === 'error' && data.code === 'queue_full') {
+                        hintText.textContent = '指令过快，已丢弃部分输入';
                     }
                 } catch (e) {
                     console.error("Error parsing message:", e);
@@ -443,11 +702,89 @@
             };
         }
 
-        connect();
+        function scheduleReconnect(delay) {
+            if (isPageSuspended || !shouldReconnect || !deviceId || !deviceToken) return;
+            clearTimeout(reconnectTimer);
+            reconnectTimer = setTimeout(connect, delay);
+        }
+
+        function forceReconnect(reason) {
+            if (isPageSuspended || !deviceId || !deviceToken || !shouldReconnect) return;
+            const staleSocket = ws;
+            ws = null;
+            isConnected = false;
+            hintText.textContent = reason;
+            spinner.style.display = 'block';
+            if (staleSocket) {
+                try { staleSocket.close(4000, 'heartbeat_timeout'); } catch (_) {}
+            }
+            connect();
+        }
+
+        function probeConnection() {
+            if (isPageSuspended || !deviceId || !deviceToken || !shouldReconnect || document.hidden) return;
+            if (!ws || ws.readyState === WebSocket.CLOSED) {
+                connect();
+                return;
+            }
+            if (ws.readyState !== WebSocket.OPEN || !isConnected) return;
+            if (Date.now() - lastServerActivity > 12000) {
+                forceReconnect('连接超时，重新连接中...');
+                return;
+            }
+            ws.send(JSON.stringify({ action: 'heartbeat' }));
+        }
+
+        function suspendConnection() {
+            if (isPageSuspended) return;
+            isPageSuspended = true;
+            clearTimeout(reconnectTimer);
+            clearTimeout(reconnectProbeTimer);
+            isConnected = false;
+            hintText.textContent = '';
+            spinner.style.display = 'none';
+            const activeSocket = ws;
+            ws = null;
+            if (activeSocket) {
+                try {
+                    if (activeSocket.readyState === WebSocket.OPEN) {
+                        activeSocket.close(4002, 'client_background');
+                    } else {
+                        activeSocket.close();
+                    }
+                } catch (_) {}
+            }
+        }
+
+        function resumeConnection() {
+            isPageSuspended = false;
+            shouldReconnect = true;
+            lastServerActivity = Date.now();
+            if (deviceId && deviceToken) connect();
+        }
+
+        setInterval(probeConnection, 5000);
+        window.addEventListener('online', () => {
+            if (!isPageSuspended) forceReconnect('网络已恢复，重新连接中...');
+        });
+        window.addEventListener('pagehide', suspendConnection);
+        window.addEventListener('pageshow', resumeConnection);
+        window.addEventListener('focus', () => {
+            if (!isPageSuspended) probeConnection();
+        });
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) suspendConnection();
+            else resumeConnection();
+        });
+
+        if (deviceId && deviceToken) connect();
+        else showPairing();
 
         function sendCmd(cmd) {
-            if (isConnected && ws.readyState === WebSocket.OPEN) {
+            if (isConnected && ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify(cmd));
+            } else if (deviceId && deviceToken) {
+                probeConnection();
             }
         }
 
@@ -461,6 +798,7 @@
         let isDragging = false;
         let lastTapTime = 0;
         let isDoubleTap = false;
+        let gestureMaxTouches = 0;
 
         function triggerAutoCopy() {
             setTimeout(() => {
@@ -470,23 +808,33 @@
 
         trackpad.addEventListener('touchstart', (e) => {
             e.preventDefault(); 
-            isMoved = false;
-            isThreeFingerSwiped = false; 
-            lastTouchTime = Date.now();
+            const isNewGesture = gestureMaxTouches === 0;
+            gestureMaxTouches = Math.max(gestureMaxTouches, e.touches.length);
+            if (e.touches.length > 1) {
+                lastTapTime = 0;
+                isDoubleTap = false;
+            }
+            if (isNewGesture) {
+                isMoved = false;
+                isThreeFingerSwiped = false;
+                lastTouchTime = Date.now();
+            }
             
             if (e.touches.length === 1) {
                 lastTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
                 
-                const currentTime = new Date().getTime();
-                const tapLength = currentTime - lastTapTime;
-                if (tapLength < 300 && tapLength > 0) {
-                    isDoubleTap = true;
-                    sendCmd({ action: 'triple_click' });
-                    triggerAutoCopy();
-                } else {
-                    isDoubleTap = false;
+                if (isNewGesture) {
+                    const currentTime = Date.now();
+                    const tapLength = currentTime - lastTapTime;
+                    if (tapLength < 300 && tapLength > 0) {
+                        isDoubleTap = true;
+                        sendCmd({ action: 'triple_click' });
+                        triggerAutoCopy();
+                    } else {
+                        isDoubleTap = false;
+                    }
+                    lastTapTime = currentTime;
                 }
-                lastTapTime = currentTime;
 
                 dragTimer = setTimeout(() => {
                     isDragging = true;
@@ -499,9 +847,9 @@
                     sendCmd({ action: 'mouse_up' });
                     isDragging = false;
                 }
-                lastTouch = { 
-                    x: (e.touches[0].clientX + e.touches[1].clientX) / 2, 
-                    y: (e.touches[0].clientY + e.touches[1].clientY) / 2 
+                lastTouch = {
+                    x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+                    y: (e.touches[0].clientY + e.touches[1].clientY) / 2
                 };
             } else if (e.touches.length === 3) {
                 clearTimeout(dragTimer);
@@ -519,6 +867,7 @@
         trackpad.addEventListener('touchmove', (e) => {
             e.preventDefault();
             if (!lastTouch) return;
+            gestureMaxTouches = Math.max(gestureMaxTouches, e.touches.length);
             
             isMoved = true;
             clearTimeout(dragTimer);
@@ -580,43 +929,46 @@
             e.preventDefault();
             clearTimeout(dragTimer);
             const touchDuration = Date.now() - lastTouchTime;
-            
-            if (isDragging) {
-                isDragging = false;
-                sendCmd({ action: 'mouse_up' });
-                if (navigator.vibrate) navigator.vibrate(15);
-                triggerAutoCopy();
+
+            // Wait for the final finger before classifying the gesture. This avoids
+            // a two-finger tap becoming a right-click followed by a left-click.
+            if (e.touches.length === 1) {
+                lastTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            } else if (e.touches.length === 2) {
+                lastTouch = {
+                    x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+                    y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+                };
+            } else if (e.touches.length > 0) {
+                lastTouch = {
+                    x: Array.from(e.touches).reduce((sum, touch) => sum + touch.clientX, 0) / e.touches.length,
+                    y: Array.from(e.touches).reduce((sum, touch) => sum + touch.clientY, 0) / e.touches.length
+                };
             } else {
-                if (!isMoved && !isThreeFingerSwiped) {
-                    if (touchDuration < 500) {
-                        if (e.changedTouches.length === 1 && e.touches.length === 0) {
-                            if (!isDoubleTap) {
-                                sendCmd({ action: 'click', button: 'left' });
-                                if (navigator.vibrate) navigator.vibrate(15);
-                            } else {
-                                isDoubleTap = false;
-                            }
-                        } else if (e.changedTouches.length === 2 || (e.changedTouches.length === 1 && e.touches.length === 1)) {
-                            sendCmd({ action: 'click', button: 'right' });
+                if (isDragging) {
+                    isDragging = false;
+                    sendCmd({ action: 'mouse_up' });
+                    if (navigator.vibrate) navigator.vibrate(15);
+                    triggerAutoCopy();
+                } else if (!isMoved && !isThreeFingerSwiped) {
+                    if (touchDuration < 500 && gestureMaxTouches === 1) {
+                        if (!isDoubleTap) {
+                            sendCmd({ action: 'click', button: 'left' });
                             if (navigator.vibrate) navigator.vibrate(15);
+                        } else {
+                            isDoubleTap = false;
                         }
-                    } else if (touchDuration >= 500 && e.changedTouches.length === 1 && e.touches.length === 0) {
+                    } else if (touchDuration < 500 && gestureMaxTouches === 2) {
+                        sendCmd({ action: 'click', button: 'right' });
+                        if (navigator.vibrate) navigator.vibrate(15);
+                    } else if (touchDuration >= 500 && gestureMaxTouches === 1) {
                         sendCmd({ action: 'click', button: 'right' });
                         if (navigator.vibrate) navigator.vibrate(15);
                     }
                 }
-            }
-            
-            if (e.touches.length === 0) {
                 lastTouch = null;
-                isThreeFingerSwiped = false; 
-            } else if (e.touches.length === 1) {
-                lastTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-            } else if (e.touches.length === 2) {
-                lastTouch = { 
-                    x: (e.touches[0].clientX + e.touches[1].clientX) / 2, 
-                    y: (e.touches[0].clientY + e.touches[1].clientY) / 2 
-                };
+                isThreeFingerSwiped = false;
+                gestureMaxTouches = 0;
             }
         }, { passive: false });
 
@@ -628,6 +980,7 @@
                 sendCmd({ action: 'mouse_up' });
             }
             lastTouch = null;
+            gestureMaxTouches = 0;
         }, { passive: false });
 
         // --- Button Controls ---

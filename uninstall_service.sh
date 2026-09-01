@@ -1,16 +1,25 @@
 #!/bin/bash
 
-SERVICE_NAME="com.yourname.iphonemacremote"
-PLIST_PATH="$HOME/Library/LaunchAgents/${SERVICE_NAME}.plist"
+set -euo pipefail
 
-echo "正在停止并卸载后台服务..."
-# 尝试卸载服务
-launchctl unload -w "$PLIST_PATH" 2>/dev/null
+SERVICE_NAME="com.airmac.remote"
+LEGACY_SERVICE_NAME="com.yourname.iphonemacremote"
+PLIST_PATH="${HOME}/Library/LaunchAgents/${SERVICE_NAME}.plist"
+LEGACY_PLIST_PATH="${HOME}/Library/LaunchAgents/${LEGACY_SERVICE_NAME}.plist"
 
-if [ -f "$PLIST_PATH" ]; then
-    echo "正在删除配置文件: $PLIST_PATH"
-    rm "$PLIST_PATH"
-    echo "✅ 卸载成功！后台服务已停止且不会再开机自启。"
+echo "正在停止 AirMac..."
+launchctl bootout "gui/${UID}/${SERVICE_NAME}" 2>/dev/null || true
+launchctl bootout "gui/${UID}/${LEGACY_SERVICE_NAME}" 2>/dev/null || true
+
+if [ -f "${PLIST_PATH}" ]; then
+    rm "${PLIST_PATH}"
+    echo "✅ 已卸载 AirMac LaunchAgent。"
 else
-    echo "⚠️ 未找到配置文件，服务可能已经被卸载。"
+    echo "AirMac LaunchAgent 已不存在。"
 fi
+
+if [ -f "${LEGACY_PLIST_PATH}" ]; then
+    rm "${LEGACY_PLIST_PATH}"
+fi
+
+echo "配对设备和日志仍保留在 Library 中，如需删除请手动处理。"

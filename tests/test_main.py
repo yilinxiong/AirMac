@@ -1,0 +1,239 @@
+from __future__ import annotations
+
+import time
+from pathlib import Path
+from typing import Any
+
+import pytest
+from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
+
+import main
+from auth import DeviceStore
+from protocol import MoveAction
+
+
+class FakeController:
+    def __init__(self) -> None:
+        self.actions: list[Any] = []
+        self.reset_count = 0
+
+    async def start(self) -> None:
+        pass
+
+    async def stop(self) -> None:
+        pass
+
+    async def reset(self) -> None:
+        self.reset_count += 1
+
+    async def dispatch(self, action: Any, notify: Any) -> bool:
+        self.actions.append(action)
+        return True
+
+
+@pytest.fixture
+def app_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    store = DeviceStore(tmp_path / "devices.json")
+    controller = FakeController()
+    monkeypatch.setattr(main, "is_allowed_ip", lambda _: True)
+    application = main.create_app(store=store, controller=controller)
+    with TestClient(application) as client:
+        yield client, store, controller
+
+
+def authenticate_socket(client: TestClient, device_id: str, token: str):
+    return client.websocket_connect(
+        "/ws", headers={"origin": "http://testserver", "host": "testserver"}
+    )
+
+
+def test_websocket_requires_authentication(app_client: tuple[Any, ...]) -> None:
+    client, _, controller = app_client
+    with client.websocket_connect(
+        "/ws", headers={"origin": "http://testserver", "host": "testserver"}
+    ) as websocket:
+        websocket.send_json({"action": "mouse_down"})
+        assert websocket.receive_json() == {"type": "auth_failed"}
+        with pytest.raises(WebSocketDisconnect) as closed:
+            websocket.receive_json()
+        assert closed.value.code == 4003
+    assert controller.actions == []
+
+
+def test_websocket_authentication_times_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(main, "is_allowed_ip", lambda _: True)
+    monkeypatch.setattr(main, "AUTH_TIMEOUT_SECONDS", 0.01)
+    application = main.create_app(
+        store=DeviceStore(tmp_path / "devices.json"), controller=FakeController()
+    )
+    with TestClient(application) as client:
+        with client.websocket_connect(
+            "/ws", headers={"origin": "http://testserver", "host": "testserver"}
+        ) as websocket:
+            with pytest.raises(WebSocketDisconnect) as closed:
+                websocket.receive_json()
+            assert closed.value.code == 4008
+
+
+def test_websocket_rejects_wrong_token(app_client: tuple[Any, ...]) -> None:
+    client, store, controller = app_client
+    device_id, _ = store.issue_device("Test Phone")
+    with authenticate_socket(client, device_id, "x" * 43) as websocket:
+        websocket.send_json(
+            {"type": "authenticate", "device_id": device_id, "token": "x" * 43}
+        )
+        assert websocket.receive_json() == {"type": "auth_failed"}
+        with pytest.raises(WebSocketDisconnect) as closed:
+            websocket.receive_json()
+        assert closed.value.code == 4003
+    assert controller.actions == []
+
+
+def test_frontend_is_not_cached(app_client: tuple[Any, ...]) -> None:
+    client, _, _ = app_client
+    response = client.get("/")
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+
+
+def test_legacy_query_identity_is_rejected_without_retry(
+    app_client: tuple[Any, ...]
+) -> None:
+    client, _, controller = app_client
+    with client.websocket_connect(
+        "/ws?device_id=00000000-0000-4000-8000-000000000000&device_name=Old",
+        headers={"origin": "http://testserver", "host": "testserver"},
+    ) as websocket:
+        assert websocket.receive_json() == {"type": "auth_failed"}
+        with pytest.raises(WebSocketDisconnect) as closed:
+            websocket.receive_json()
+        assert closed.value.code == 4003
+    assert controller.actions == []
+
+
+def test_authenticated_websocket_dispatches_valid_actions(
+    app_client: tuple[Any, ...]
+) -> None:
+    client, store, controller = app_client
+    device_id, token = store.issue_device("Test Phone")
+    with authenticate_socket(client, device_id, token) as websocket:
+        websocket.send_json(
+            {"type": "authenticate", "device_id": device_id, "token": token}
+        )
+        assert websocket.receive_json() == {"type": "auth_ok"}
+        websocket.send_json({"action": "move", "dx": 2, "dy": -3})
+    assert isinstance(controller.actions[0], MoveAction)
+    assert controller.reset_count >= 2
+
+
+def test_heartbeat_is_acknowledged_without_dispatch(
+    app_client: tuple[Any, ...]
+) -> None:
+    client, store, controller = app_client
+    device_id, token = store.issue_device("Heartbeat Phone")
+    with authenticate_socket(client, device_id, token) as websocket:
+        websocket.send_json(
+            {"type": "authenticate", "device_id": device_id, "token": token}
+        )
+        assert websocket.receive_json() == {"type": "auth_ok"}
+        websocket.send_json({"action": "heartbeat"})
+        assert websocket.receive_json() == {"type": "heartbeat_ack"}
+    assert controller.actions == []
+
+
+def test_websocket_rejects_bad_origin(app_client: tuple[Any, ...]) -> None:
+    client, store, _ = app_client
+    device_id, token = store.issue_device("Test Phone")
+    with pytest.raises(WebSocketDisconnect) as closed:
+        with client.websocket_connect(
+            "/ws", headers={"origin": "http://evil.example", "host": "testserver"}
+        ) as websocket:
+            websocket.send_json(
+                {"type": "authenticate", "device_id": device_id, "token": token}
+            )
+    assert closed.value.code == 1008
+
+
+def test_second_device_is_busy(app_client: tuple[Any, ...]) -> None:
+    client, store, _ = app_client
+    first_id, first_token = store.issue_device("First")
+    second_id, second_token = store.issue_device("Second")
+    with authenticate_socket(client, first_id, first_token) as first:
+        first.send_json(
+            {"type": "authenticate", "device_id": first_id, "token": first_token}
+        )
+        assert first.receive_json() == {"type": "auth_ok"}
+        with authenticate_socket(client, second_id, second_token) as second:
+            second.send_json(
+                {
+                    "type": "authenticate",
+                    "device_id": second_id,
+                    "token": second_token,
+                }
+            )
+            assert second.receive_json() == {
+                "type": "error",
+                "code": "controller_busy",
+            }
+            with pytest.raises(WebSocketDisconnect) as closed:
+                second.receive_json()
+            assert closed.value.code == 4009
+
+
+def test_same_device_new_connection_replaces_old(app_client: tuple[Any, ...]) -> None:
+    client, store, _ = app_client
+    device_id, token = store.issue_device("Same Phone")
+    with authenticate_socket(client, device_id, token) as first:
+        first.send_json(
+            {"type": "authenticate", "device_id": device_id, "token": token}
+        )
+        assert first.receive_json() == {"type": "auth_ok"}
+        with authenticate_socket(client, device_id, token) as second:
+            second.send_json(
+                {"type": "authenticate", "device_id": device_id, "token": token}
+            )
+            assert second.receive_json() == {"type": "auth_ok"}
+            with pytest.raises(WebSocketDisconnect) as closed:
+                first.receive_json()
+            assert closed.value.code == 4010
+
+
+def test_explicit_network_ranges() -> None:
+    assert main.is_allowed_ip("192.168.1.10")
+    assert main.is_allowed_ip("10.20.30.40")
+    assert main.is_allowed_ip("172.16.0.1")
+    assert main.is_allowed_ip("fd00::1")
+    assert not main.is_allowed_ip("8.8.8.8")
+    assert not main.is_allowed_ip("172.15.255.255")
+
+
+def test_disconnect_categories_include_mobile_lifecycle() -> None:
+    assert main.disconnect_category(4002) == "client_background"
+    assert main.disconnect_category(1000) == "normal"
+    assert main.disconnect_category(1005) == "mobile_suspend_or_ungraceful"
+    assert main.disconnect_category(1006) == "network_or_abnormal"
+
+
+def test_blank_device_name_is_rejected() -> None:
+    with pytest.raises(ValueError):
+        main.PairingStartRequest(device_name="   ")
+    with pytest.raises(ValueError):
+        main.PairingStartRequest(device_name="Phone\u200b")
+
+
+def test_revoked_active_device_is_disconnected(app_client: tuple[Any, ...]) -> None:
+    client, store, _ = app_client
+    device_id, token = store.issue_device("Revoked Phone")
+    with authenticate_socket(client, device_id, token) as websocket:
+        websocket.send_json(
+            {"type": "authenticate", "device_id": device_id, "token": token}
+        )
+        assert websocket.receive_json() == {"type": "auth_ok"}
+        assert store.revoke(device_id)
+        time.sleep(1.1)
+        with pytest.raises(WebSocketDisconnect) as closed:
+            websocket.receive_json()
+        assert closed.value.code == 4003

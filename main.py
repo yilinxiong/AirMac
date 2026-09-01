@@ -37,6 +37,14 @@ PORT = 8000
 
 @app.on_event("startup")
 async def startup_event():
+    try:
+        loop = asyncio.get_running_loop()
+        loop.set_debug(True)
+        loop.slow_callback_duration = 0.1 # 100ms
+        logger.info("Asyncio debug mode enabled. Slow callbacks (>100ms) will be logged.")
+    except Exception as e:
+        logger.error(f"Failed to enable asyncio debug mode: {e}")
+        
     print("\n" + "="*50)
     print("🚀 AirMac Server Started!")
     print("📱 Please open Safari on your iPhone and access:")
@@ -70,26 +78,41 @@ prompt_locks = {}
 last_move_time = 0
 virtual_x = 0
 virtual_y = 0
+displays_cache = None
+displays_cache_time = 0
+
+def get_displays():
+    global displays_cache, displays_cache_time
+    current_time = time.time()
+    if displays_cache is None or current_time - displays_cache_time > 5.0:
+        success, active_displays, count = Quartz.CGGetActiveDisplayList(10, None, None)
+        if success == 0 and count > 0:
+            displays_cache = []
+            for i in range(count):
+                bounds = Quartz.CGDisplayBounds(active_displays[i])
+                displays_cache.append({
+                    "min_x": bounds.origin.x,
+                    "max_x": bounds.origin.x + bounds.size.width - 1,
+                    "min_y": bounds.origin.y,
+                    "max_y": bounds.origin.y + bounds.size.height - 1,
+                })
+        displays_cache_time = current_time
+    return displays_cache
 
 def clamp_to_displays(x, y):
-    success, active_displays, count = Quartz.CGGetActiveDisplayList(10, None, None)
-    if success != 0 or count == 0:
+    displays = get_displays()
+    if not displays:
         return x, y
         
-    # Check if point is inside any active display
-    for i in range(count):
-        bounds = Quartz.CGDisplayBounds(active_displays[i])
-        if bounds.origin.x <= x <= bounds.origin.x + bounds.size.width - 1 and \
-           bounds.origin.y <= y <= bounds.origin.y + bounds.size.height - 1:
+    for bounds in displays:
+        if bounds["min_x"] <= x <= bounds["max_x"] and bounds["min_y"] <= y <= bounds["max_y"]:
             return x, y
             
-    # If outside all displays, clamp to the closest point on the closest display
     best_x, best_y = x, y
     min_dist = float('inf')
-    for i in range(count):
-        bounds = Quartz.CGDisplayBounds(active_displays[i])
-        cx = max(bounds.origin.x, min(x, bounds.origin.x + bounds.size.width - 1))
-        cy = max(bounds.origin.y, min(y, bounds.origin.y + bounds.size.height - 1))
+    for bounds in displays:
+        cx = max(bounds["min_x"], min(x, bounds["max_x"]))
+        cy = max(bounds["min_y"], min(y, bounds["max_y"]))
         dist = (cx - x)**2 + (cy - y)**2
         if dist < min_dist:
             min_dist = dist
@@ -172,39 +195,50 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device
     try:
         while True:
             data = await websocket.receive_text()
+            start_time = time.time()
             try:
                 cmd = json.loads(data)
                 action = cmd.get("action")
                 
                 if action == "auto_copy":
-                    # 1. 备份当前剪贴板
-                    old_clipboard = pyperclip.paste()
-                
-                    # 2. 清空剪贴板 (写入空字符串)
-                    pyperclip.copy('')
-                
-                    # 3. 模拟 Cmd + C
-                    process = await asyncio.create_subprocess_exec("osascript", "-e", 'tell application "System Events" to keystroke "c" using command down')
-                    await process.wait()
-                
-                    # 4. 等待 0.15 秒让系统完成复制
-                    await asyncio.sleep(0.15)
-                
-                    # 5. 嗅探剪贴板
-                    new_clipboard = pyperclip.paste()
-                
-                    if not new_clipboard or new_clipboard == '':
-                        # 挥空了 (没有选中任何文字)：恢复旧的剪贴板内容
-                        if old_clipboard:
-                            pyperclip.copy(old_clipboard)
-                    else:
-                        # 成功抓取到新文字：发送成功信号给前端 (可选附带抓取到的文字前20个字符)
-                        success_msg = {
-                            "type": "copy_success", 
-                            "preview": new_clipboard[:20] + "..." if len(new_clipboard) > 20 else new_clipboard
-                        }
-                        await websocket.send_text(json.dumps(success_msg))
-                        os.system("./hud '✅ 自动复制成功' &")
+                    async def do_auto_copy():
+                        try:
+                            # 1. 备份当前剪贴板
+                            old_clipboard = pyperclip.paste()
+                        
+                            # 2. 清空剪贴板 (写入空字符串)
+                            pyperclip.copy('')
+                        
+                            # 3. 模拟 Cmd + C
+                            process = await asyncio.create_subprocess_exec(
+                                "osascript", "-e", 'tell application "System Events" to keystroke "c" using command down',
+                                stdout=asyncio.subprocess.DEVNULL,
+                                stderr=asyncio.subprocess.DEVNULL
+                            )
+                            await process.wait()
+                        
+                            # 4. 等待 0.15 秒让系统完成复制
+                            await asyncio.sleep(0.15)
+                        
+                            # 5. 嗅探剪贴板
+                            new_clipboard = pyperclip.paste()
+                        
+                            if not new_clipboard or new_clipboard == '':
+                                # 挥空了 (没有选中任何文字)：恢复旧的剪贴板内容
+                                if old_clipboard:
+                                    pyperclip.copy(old_clipboard)
+                            else:
+                                # 成功抓取到新文字：发送成功信号给前端
+                                success_msg = {
+                                    "type": "copy_success", 
+                                    "preview": new_clipboard[:20] + "..." if len(new_clipboard) > 20 else new_clipboard
+                                }
+                                await websocket.send_text(json.dumps(success_msg))
+                                os.system("./hud '✅ 自动复制成功' &")
+                        except Exception as e:
+                            logger.error(f"Auto copy error: {e}")
+                    
+                    asyncio.create_task(do_auto_copy())
                     
                 elif action == "mouse_down":
                     current_event = Quartz.CGEventCreate(None)
@@ -222,11 +256,11 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device
                     dx = cmd.get("dx", 0)
                     dy = cmd.get("dy", 0)
                     
-                    current_event = Quartz.CGEventCreate(None)
-                    current_pos = Quartz.CGEventGetLocation(current_event)
                     current_time = time.time()
                     
                     if current_time - last_move_time > 0.2:
+                        current_event = Quartz.CGEventCreate(None)
+                        current_pos = Quartz.CGEventGetLocation(current_event)
                         virtual_x = current_pos.x
                         virtual_y = current_pos.y
                         
@@ -251,11 +285,11 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device
                     dx = cmd.get("dx", 0)
                     dy = cmd.get("dy", 0)
                     
-                    current_event = Quartz.CGEventCreate(None)
-                    current_pos = Quartz.CGEventGetLocation(current_event)
                     current_time = time.time()
                     
                     if current_time - last_move_time > 0.2:
+                        current_event = Quartz.CGEventCreate(None)
+                        current_pos = Quartz.CGEventGetLocation(current_event)
                         virtual_x = current_pos.x
                         virtual_y = current_pos.y
                         
@@ -353,19 +387,22 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device
 
                 # --- New Features: Multitasking & Desktop Management ---
                 elif action == "mission_control":
-                    # Use AppleScript for Mission Control (more reliable than pynput)
-                    process = await asyncio.create_subprocess_exec("osascript", "-e", 'tell application "System Events" to key code 126 using control down')
-                    await process.wait()
+                    async def do_mission_control():
+                        process = await asyncio.create_subprocess_exec("osascript", "-e", 'tell application "System Events" to key code 126 using control down', stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+                        await process.wait()
+                    asyncio.create_task(do_mission_control())
 
                 elif action == "space_left":
-                    # Use AppleScript to switch to left desktop
-                    process = await asyncio.create_subprocess_exec("osascript", "-e", 'tell application "System Events" to key code 123 using control down')
-                    await process.wait()
+                    async def do_space_left():
+                        process = await asyncio.create_subprocess_exec("osascript", "-e", 'tell application "System Events" to key code 123 using control down', stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+                        await process.wait()
+                    asyncio.create_task(do_space_left())
 
                 elif action == "space_right":
-                    # Use AppleScript to switch to right desktop
-                    process = await asyncio.create_subprocess_exec("osascript", "-e", 'tell application "System Events" to key code 124 using control down')
-                    await process.wait()
+                    async def do_space_right():
+                        process = await asyncio.create_subprocess_exec("osascript", "-e", 'tell application "System Events" to key code 124 using control down', stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+                        await process.wait()
+                    asyncio.create_task(do_space_right())
 
                 elif action == "cmd_tab":
                     # Cmd + Tab to switch to previous app
@@ -376,9 +413,10 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device
                     
                 # --- New Features: Sleep & Text Projection ---
                 elif action == "display_sleep":
-                    # Use displaysleepnow for light sleep (turns off display only), so wake_watch can still work
-                    process = await asyncio.create_subprocess_exec("pmset", "displaysleepnow")
-                    await process.wait()
+                    async def do_display_sleep():
+                        process = await asyncio.create_subprocess_exec("pmset", "displaysleepnow", stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+                        await process.wait()
+                    asyncio.create_task(do_display_sleep())
                     
                 elif action == "wake_watch":
                     # 在后台运行 caffeinate 以免阻塞 WebSocket
@@ -397,20 +435,26 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str = None, device
                 elif action == "type_text":
                     text = cmd.get("text", "")
                     if text:
-                        pyperclip.copy(text)
-                        # Slight delay to ensure clipboard is ready
-                        await asyncio.sleep(0.15)
-                        keyboard.press(Key.cmd)
-                        keyboard.press('v')
-                        keyboard.release('v')
-                        keyboard.release(Key.cmd)
+                        async def do_type_text(t):
+                            pyperclip.copy(t)
+                            # Slight delay to ensure clipboard is ready
+                            await asyncio.sleep(0.15)
+                            keyboard.press(Key.cmd)
+                            keyboard.press('v')
+                            keyboard.release('v')
+                            keyboard.release(Key.cmd)
+                            
+                            # Auto Enter: Wait longer for long texts so Mac has time to render/paste
+                            paste_delay = min(0.8, 0.15 + (len(t) * 0.005))
+                            await asyncio.sleep(paste_delay)
+                            
+                            keyboard.press(Key.enter)
+                            keyboard.release(Key.enter)
+                        asyncio.create_task(do_type_text(text))
                         
-                        # Auto Enter: Wait longer for long texts so Mac has time to render/paste
-                        paste_delay = min(0.8, 0.15 + (len(text) * 0.005))
-                        await asyncio.sleep(paste_delay)
-                        
-                        keyboard.press(Key.enter)
-                        keyboard.release(Key.enter)
+                process_duration = time.time() - start_time
+                if process_duration > 0.05:
+                    logger.warning(f"SLOW PROCESSING: Action '{action}' took {process_duration*1000:.2f}ms to process. This may cause cursor lag!")
                         
             except json.JSONDecodeError:
                 logger.error("Invalid JSON received.")

@@ -13,12 +13,21 @@ from typing import Awaitable, Callable
 import Quartz
 from pynput.keyboard import Controller as KeyboardController, Key
 
-from protocol import ActionMessage, MoveAction, ScrollAction, TypeTextAction
+from protocol import ActionMessage, MoveAction, QuickAction, ScrollAction, TypeTextAction
 
 
 logger = logging.getLogger("AirMac.controller")
 NotifyCallback = Callable[[dict[str, object]], Awaitable[None]]
 APPS_APPLICATION_PATH = Path("/System/Applications/Apps.app")
+WINDOW_SHORTCUT_FLAGS = (
+    Quartz.kCGEventFlagMaskSecondaryFn | Quartz.kCGEventFlagMaskControl
+)
+WINDOW_SHORTCUT_KEY_CODES = {
+    "window_left": 123,
+    "window_right": 124,
+    "window_fill": 3,
+    "window_center": 8,
+}
 POINTER_ACTIONS = {
     "mouse_down",
     "mouse_up",
@@ -393,6 +402,16 @@ class MacController:
             await loop.run_in_executor(
                 self.control_executor, self._execute_keyboard, message
             )
+        elif action == "quick_action":
+            assert isinstance(message, QuickAction)
+            if message.command == "screenshot":
+                await self._run_process("screencapture", "-c", "-x")
+            else:
+                await loop.run_in_executor(
+                    self.control_executor,
+                    self._execute_quick_action,
+                    message.command,
+                )
         elif action == "mission_control":
             await self._run_process(
                 "osascript",
@@ -617,6 +636,33 @@ class MacController:
                 self._press_and_release("f")
                 self.keyboard.release(Key.ctrl)
                 self.keyboard.release(Key.cmd)
+
+    def _execute_quick_action(self, command: str) -> None:
+        if command in WINDOW_SHORTCUT_KEY_CODES:
+            self._post_key_code(
+                WINDOW_SHORTCUT_KEY_CODES[command], WINDOW_SHORTCUT_FLAGS
+            )
+        elif command == "volume_down":
+            self._press_and_release(Key.media_volume_down)
+        elif command == "volume_mute":
+            self._press_and_release(Key.media_volume_mute)
+        elif command == "volume_up":
+            self._press_and_release(Key.media_volume_up)
+        elif command == "brightness_down":
+            self._post_key_code(144, 0)
+        elif command == "brightness_up":
+            self._post_key_code(145, 0)
+        elif command == "lock_screen":
+            self._post_key_code(
+                12,
+                Quartz.kCGEventFlagMaskControl | Quartz.kCGEventFlagMaskCommand,
+            )
+
+    def _post_key_code(self, key_code: int, flags: int) -> None:
+        for is_down in (True, False):
+            event = Quartz.CGEventCreateKeyboardEvent(None, key_code, is_down)
+            Quartz.CGEventSetFlags(event, flags)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
 
     def _paste(self) -> None:
         self.keyboard.press(Key.cmd)

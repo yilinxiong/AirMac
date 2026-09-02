@@ -81,6 +81,23 @@ class MediaAction(ActionBase):
     command: Literal["playpause", "fullscreen"]
 
 
+class QuickAction(ActionBase):
+    action: Literal["quick_action"]
+    command: Literal[
+        "window_left",
+        "window_right",
+        "window_fill",
+        "window_center",
+        "volume_down",
+        "volume_mute",
+        "volume_up",
+        "brightness_down",
+        "brightness_up",
+        "screenshot",
+        "lock_screen",
+    ]
+
+
 class TypeTextAction(ActionBase):
     action: Literal["type_text"]
     request_id: Annotated[
@@ -109,6 +126,7 @@ ActionMessage = Annotated[
     | TypeAction
     | KeydownAction
     | MediaAction
+    | QuickAction
     | TypeTextAction,
     Field(discriminator="action"),
 ]

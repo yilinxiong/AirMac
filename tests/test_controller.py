@@ -99,6 +99,45 @@ async def test_app_launcher_prefers_modern_macos_apps(
     assert calls == [("open", str(apps_path))]
 
 
+def test_quick_action_uses_fixed_window_shortcuts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    controller = MacController()
+    calls: list[tuple[int, int]] = []
+    monkeypatch.setattr(
+        controller,
+        "_post_key_code",
+        lambda key_code, flags: calls.append((key_code, flags)),
+    )
+
+    controller._execute_quick_action("window_left")
+    controller._execute_quick_action("window_fill")
+
+    assert calls == [
+        (123, mac_controller.WINDOW_SHORTCUT_FLAGS),
+        (3, mac_controller.WINDOW_SHORTCUT_FLAGS),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_screenshot_quick_action_uses_parameterized_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    controller = MacController()
+    calls: list[tuple[str, ...]] = []
+
+    async def fake_run_process(*arguments: str, timeout: float = 5.0) -> None:
+        calls.append(arguments)
+
+    monkeypatch.setattr(controller, "_run_process", fake_run_process)
+    message = parse_action_message(
+        json.dumps({"action": "quick_action", "command": "screenshot"})
+    )
+    await controller._execute_control(QueuedAction(message, 1, noop_notify))
+
+    assert calls == [("screencapture", "-c", "-x")]
+
+
 @pytest.mark.asyncio
 async def test_control_worker_serializes_clipboard_actions(
     monkeypatch: pytest.MonkeyPatch,

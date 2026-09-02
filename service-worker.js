@@ -1,8 +1,9 @@
-const CACHE_NAME = 'airmac-shell-v2';
+const CACHE_NAME = 'airmac-shell-v3';
 const OFFLINE_URL = '/offline.html';
 const SHELL_ASSETS = [
     OFFLINE_URL,
     '/frontend_state.js',
+    '/ui_components.js',
     '/manifest.webmanifest',
     '/icons/apple-touch-icon.png',
     '/icons/icon-192.png',

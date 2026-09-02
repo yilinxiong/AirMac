@@ -392,6 +392,15 @@ def create_app(
             headers={"Cache-Control": "no-store"},
         )
 
+    @application.get("/ui_components.js")
+    async def get_ui_components(request: Request) -> FileResponse:
+        request_ip(request)
+        return FileResponse(
+            PROJECT_DIR / "ui_components.js",
+            media_type="text/javascript",
+            headers={"Cache-Control": "no-store"},
+        )
+
     @application.get("/api/health")
     async def get_health(request: Request) -> dict[str, object]:
         request_ip(request)

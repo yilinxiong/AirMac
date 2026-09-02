@@ -141,6 +141,11 @@ def test_pwa_assets_are_served_with_safe_types(app_client: tuple[Any, ...]) -> N
     assert worker.headers["service-worker-allowed"] == "/"
     assert worker.headers["cache-control"] == "no-cache"
 
+    components = client.get("/ui_components.js")
+    assert components.status_code == 200
+    assert components.headers["content-type"].startswith("text/javascript")
+    assert components.headers["cache-control"] == "no-store"
+
     icon = client.get("/icons/icon-192.png")
     assert icon.status_code == 200
     assert icon.headers["content-type"].startswith("image/png")

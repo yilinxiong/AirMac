@@ -20,12 +20,24 @@ AirMac turns an iPhone into a low-latency trackpad and keyboard for a Mac on the
 - Four-finger upward swipe to open Launchpad or the macOS Apps interface
 - Long-press dragging with disconnect-safe mouse release
 - Keyboard input and long-text projection
-- Confirmed long-text delivery with a dedicated clear button
+- Confirmed long-text delivery with a compact in-field clear button
 - Automatic copy feedback with a native macOS HUD
 - Media, fullscreen, display sleep, and wake controls
 - Six-digit, short-lived pairing codes and revocable device tokens
 - Native macOS menu-bar status and paired-device management
 - Installable Home Screen web app with manifest and adaptive icons
+
+### Gesture reference
+
+| Gesture | Result |
+| --- | --- |
+| One-finger move / tap | Move pointer / left click |
+| Two-finger move / tap | Scroll / right click |
+| Double tap | Triple-click selection followed by automatic copy |
+| Press and hold, then move | Drag; disconnecting always releases the mouse |
+| Three-finger swipe up | Mission Control |
+| Three-finger swipe left or right | Switch Spaces |
+| Four-finger swipe up | Open Apps on macOS 26 or Launchpad on older macOS |
 
 ### Install
 
@@ -104,6 +116,19 @@ The legacy `whitelist.json` format is intentionally not migrated because its cli
 
 If the installed Swift compiler and macOS SDK do not match, installation continues and copy feedback falls back to a standard macOS notification.
 
+### Troubleshooting
+
+```bash
+python manage_devices.py status
+python manage_devices.py diagnose
+tail -f "$HOME/Library/Logs/AirMac/remote.log"
+launchctl print "gui/$(id -u)/com.airmac.remote"
+```
+
+If the Home Screen app still shows an older interface, close it completely and
+open the Safari URL once. HTTPS deployments using Service Workers update the PWA
+shell automatically when the bundled cache version changes.
+
 ### Development checks
 
 ```bash
@@ -128,12 +153,24 @@ AirMac 可以把同一可信局域网中的 iPhone 变成 Mac 的低延迟触控
 - 四指上滑打开 Launchpad 或新版 macOS Apps 应用界面
 - 长按拖拽，断线时自动释放鼠标
 - 手机键盘输入和长文本投射
-- 长文本执行确认以及独立的一键清空按钮
+- 长文本执行确认，以及输入框内嵌的一键清空按钮
 - 自动复制与 macOS 原生 HUD 提示
 - 媒体、全屏、息屏与唤醒控制
 - 6 位短时验证码配对、可撤销设备令牌
 - 原生 macOS 菜单栏状态与配对设备管理
 - 带 manifest 和自适应图标的主屏幕 Web App
+
+### 手势对照
+
+| 手势 | 功能 |
+| --- | --- |
+| 单指移动 / 轻点 | 移动光标 / 左键点击 |
+| 双指移动 / 轻点 | 滚动 / 右键点击 |
+| 连续轻点两次 | 三击选中文本并自动复制 |
+| 单指长按后移动 | 拖拽；断线时强制释放鼠标 |
+| 三指上滑 | 打开调度中心 |
+| 三指左右滑 | 切换桌面空间 |
+| 四指上滑 | macOS 26 打开 Apps，旧版 macOS 打开 Launchpad |
 
 ### 安装与运行
 
@@ -194,8 +231,39 @@ python manage_devices.py diagnose
 
 后台日志位于 `~/Library/Logs/AirMac/remote.log`。每行包含精确到毫秒的本地时间；若指针处理变慢，日志会分别记录排队时间和 Quartz 执行时间，方便区分网络中断与 Mac 输入层阻塞。日志每 5 MiB 轮转，保留 4 份备份，主日志集合约占 25 MiB。
 
+常用排查命令：
+
+```bash
+python manage_devices.py status
+python manage_devices.py diagnose
+tail -f "$HOME/Library/Logs/AirMac/remote.log"
+launchctl print "gui/$(id -u)/com.airmac.remote"
+```
+
+如果主屏幕版本仍显示旧界面，请彻底关闭后先在 Safari 中重新打开一次地址。
+HTTPS/Service Worker 部署会在内置缓存版本更新后自动替换 PWA 外壳。
+
 卸载后台服务不会删除设备记录或日志：
 
 ```bash
 ./uninstall_service.sh
 ```
+
+## Development map / 开发索引
+
+| File | Responsibility |
+| --- | --- |
+| `main.py` | FastAPI routes, WebSocket authentication, session ownership and monitoring |
+| `auth.py` | Pairing challenges and atomic token-digest device storage |
+| `protocol.py` | Strict, size-bounded Pydantic message models |
+| `mac_controller.py` | Ordered input queues, Quartz events, clipboard and macOS commands |
+| `index.html` | Mobile UI, connection lifecycle and touch gesture dispatch |
+| `frontend_state.js` | Testable reconnect, projection and gesture state machines |
+| `menubar.m` | Native AppKit menu-bar manager |
+| `install_service.sh` | Build and install the server/menu-bar LaunchAgents |
+| `manage_devices.py` | Local-only device and service management CLI |
+| `tests/` | Cross-platform unit, integration and stress tests |
+
+Before making automated changes, read [`AGENTS.md`](AGENTS.md). It records the
+security and lifecycle invariants that future contributors and coding agents must
+preserve.

@@ -2,14 +2,92 @@
 from __future__ import annotations
 
 import argparse
+import json
+import os
+import re
+import stat
+import subprocess
+import urllib.error
+import urllib.request
+from pathlib import Path
 
-from auth import DeviceStore
+from auth import DeviceStore, DeviceStoreError
+
+
+SERVICE_NAME = "com.airmac.remote"
+HEALTH_URL = "http://127.0.0.1:8000/api/health"
+LOG_PATH = Path.home() / "Library" / "Logs" / "AirMac" / "remote.log"
+
+
+def parse_launchctl_output(output: str) -> tuple[str, str]:
+    state_match = re.search(r"^\s*state = (\S+)", output, re.MULTILINE)
+    pid_match = re.search(r"^\s*pid = (\d+)", output, re.MULTILINE)
+    return (
+        state_match.group(1) if state_match else "unknown",
+        pid_match.group(1) if pid_match else "-",
+    )
+
+
+def print_service_status() -> bool:
+    label = f"gui/{os.getuid()}/{SERVICE_NAME}"
+    try:
+        result = subprocess.run(
+            ["launchctl", "print", label],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        print(f"服务：无法查询（{exc}）")
+        return False
+    if result.returncode != 0:
+        print("服务：未运行")
+        return False
+    state, pid = parse_launchctl_output(result.stdout)
+    print(f"服务：{state}  pid={pid}")
+
+    try:
+        with urllib.request.urlopen(HEALTH_URL, timeout=2) as response:
+            health = json.load(response)
+    except (OSError, ValueError, urllib.error.URLError) as exc:
+        print(f"健康检查：失败（{exc}）")
+        return False
+    print(
+        f"健康检查：{health.get('status', 'unknown')}  "
+        f"controller={health.get('controller', 'unknown')}"
+    )
+    return state == "running" and health.get("status") == "ok"
+
+
+def print_diagnostics(store: DeviceStore) -> bool:
+    healthy = print_service_status()
+    print(f"设备库：{store.path}")
+    if store.path.exists():
+        mode = stat.S_IMODE(store.path.stat().st_mode)
+        try:
+            device_count = len(store.list_devices())
+        except DeviceStoreError as exc:
+            print(f"设备库：读取失败（{exc}）")
+            healthy = False
+        else:
+            print(f"设备库权限：{mode:o}  devices={device_count}")
+            healthy = healthy and mode == 0o600
+    else:
+        print("设备库：尚未创建")
+    if LOG_PATH.exists():
+        print(f"日志：{LOG_PATH}  size={LOG_PATH.stat().st_size} bytes")
+    else:
+        print(f"日志：不存在（{LOG_PATH}）")
+    return healthy
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="管理 AirMac 已配对设备")
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("list", help="列出已配对设备")
+    subparsers.add_parser("status", help="检查后台服务和 WebSocket 控制器状态")
+    subparsers.add_parser("diagnose", help="输出不含凭据的本机诊断信息")
 
     revoke = subparsers.add_parser("revoke", help="撤销一台设备")
     revoke.add_argument("device_id")
@@ -22,6 +100,10 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = build_parser().parse_args()
     store = DeviceStore()
+    if args.command == "status":
+        return 0 if print_service_status() else 1
+    if args.command == "diagnose":
+        return 0 if print_diagnostics(store) else 1
     if args.command == "list":
         devices = store.list_devices()
         if not devices:

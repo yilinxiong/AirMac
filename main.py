@@ -6,6 +6,9 @@ import json
 import logging
 import os
 import socket
+import time
+import uuid
+from collections import deque
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -26,7 +29,7 @@ from auth import (
     PairingRateLimited,
 )
 from mac_controller import MacController
-from protocol import parse_action_message, parse_auth_message
+from protocol import TypeTextAction, parse_action_message, parse_auth_message
 
 
 logging.basicConfig(
@@ -38,6 +41,10 @@ logger = logging.getLogger("AirMac")
 PROJECT_DIR = Path(__file__).resolve().parent
 PORT = 8000
 AUTH_TIMEOUT_SECONDS = 5.0
+SESSION_IDLE_TIMEOUT_SECONDS = 16.0
+SESSION_MONITOR_INTERVAL_SECONDS = 1.0
+METRICS_LOG_INTERVAL_SECONDS = 30.0
+EVENT_LOOP_LAG_WARNING_SECONDS = 0.1
 ALLOWED_NETWORKS = tuple(
     ipaddress.ip_network(network)
     for network in (
@@ -125,26 +132,37 @@ class PairingCompleteRequest(ApiModel):
 class ActiveSession:
     device_id: str
     websocket: WebSocket
+    session_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
+    last_activity: float = field(default_factory=time.monotonic)
+    projection_ids: deque[str] = field(default_factory=lambda: deque(maxlen=128))
+    closing: bool = False
     send_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
 class SessionRegistry:
-    def __init__(self, controller: MacController) -> None:
+    def __init__(self, controller: MacController, idle_timeout: float) -> None:
         self.controller = controller
+        self.idle_timeout = idle_timeout
         self.active: ActiveSession | None = None
         self.lock = asyncio.Lock()
+        self.completed_projections: dict[tuple[str, str], float] = {}
 
     async def claim(self, session: ActiveSession) -> bool:
         old_session: ActiveSession | None = None
         async with self.lock:
             if self.active and self.active.device_id != session.device_id:
-                return False
+                age = time.monotonic() - self.active.last_activity
+                if age <= self.idle_timeout:
+                    return False
             old_session = self.active
             self.active = session
         await self.controller.reset()
         if old_session and old_session.websocket is not session.websocket:
             try:
-                await old_session.websocket.close(code=4010, reason="replaced")
+                if old_session.device_id == session.device_id:
+                    await old_session.websocket.close(code=4010, reason="replaced")
+                else:
+                    await old_session.websocket.close(code=4004, reason="idle_timeout")
             except RuntimeError:
                 pass
         return True
@@ -162,37 +180,104 @@ class SessionRegistry:
         async with self.lock:
             return self.active
 
+    async def record_projection(self, device_id: str, request_id: str) -> None:
+        now = time.monotonic()
+        async with self.lock:
+            self.completed_projections[(device_id, request_id)] = now
+            cutoff = now - 600
+            stale = [
+                key
+                for key, completed_at in self.completed_projections.items()
+                if completed_at < cutoff
+            ]
+            for key in stale:
+                self.completed_projections.pop(key, None)
+
+    async def projection_completed(self, device_id: str, request_id: str) -> bool:
+        async with self.lock:
+            return (device_id, request_id) in self.completed_projections
+
 
 def create_app(
     *,
     store: DeviceStore | None = None,
     pairing: PairingManager | None = None,
     controller: MacController | None = None,
+    session_idle_timeout: float = SESSION_IDLE_TIMEOUT_SECONDS,
+    monitor_interval: float = SESSION_MONITOR_INTERVAL_SECONDS,
 ) -> FastAPI:
     device_store = store or DeviceStore()
     pairing_manager = pairing or PairingManager(device_store)
     mac_controller = controller or MacController()
-    sessions = SessionRegistry(mac_controller)
+    sessions = SessionRegistry(mac_controller, session_idle_timeout)
 
-    async def watch_revocations() -> None:
+    async def watch_sessions() -> None:
+        last_metrics_log = time.monotonic()
+        last_metrics_snapshot: dict[str, int] | None = None
         while True:
-            await asyncio.sleep(1)
+            await asyncio.sleep(monitor_interval)
+            now = time.monotonic()
             session = await sessions.snapshot()
-            if not session:
-                continue
-            try:
-                authorized = await asyncio.to_thread(
-                    device_store.contains, session.device_id
-                )
-            except Exception:
-                logger.exception("Unable to read the paired-device database")
-                continue
-            if not authorized:
-                logger.warning("Disconnecting revoked device %s", session.device_id)
-                try:
-                    await session.websocket.close(code=4003, reason="device_revoked")
-                except RuntimeError:
-                    pass
+            if session and not session.closing:
+                idle_seconds = now - session.last_activity
+                if idle_seconds > session_idle_timeout:
+                    session.closing = True
+                    logger.info(
+                        "Closing idle session session=%s device=%s idle_seconds=%.1f",
+                        session.session_id,
+                        session.device_id,
+                        idle_seconds,
+                    )
+                    try:
+                        await session.websocket.close(
+                            code=4004, reason="idle_timeout"
+                        )
+                    except RuntimeError:
+                        pass
+                else:
+                    try:
+                        authorized = await asyncio.to_thread(
+                            device_store.contains, session.device_id
+                        )
+                    except Exception:
+                        logger.exception("Unable to read the paired-device database")
+                    else:
+                        if not authorized:
+                            session.closing = True
+                            logger.warning(
+                                "Disconnecting revoked device session=%s device=%s",
+                                session.session_id,
+                                session.device_id,
+                            )
+                            try:
+                                await session.websocket.close(
+                                    code=4003, reason="device_revoked"
+                                )
+                            except RuntimeError:
+                                pass
+
+            if now - last_metrics_log >= METRICS_LOG_INTERVAL_SECONDS:
+                snapshot = getattr(mac_controller, "snapshot_metrics", lambda: {})()
+                if snapshot and (session is not None or snapshot != last_metrics_snapshot):
+                    logger.info(
+                        "Input metrics %s",
+                        " ".join(
+                            f"{key}={value}" for key, value in snapshot.items()
+                        ),
+                    )
+                last_metrics_snapshot = snapshot
+                last_metrics_log = now
+
+    async def watch_event_loop_lag() -> None:
+        interval = 1.0
+        expected = time.monotonic() + interval
+        while True:
+            await asyncio.sleep(interval)
+            now = time.monotonic()
+            lag = max(0.0, now - expected)
+            if lag >= EVENT_LOOP_LAG_WARNING_SECONDS:
+                logger.warning("Event loop lag duration_ms=%.1f", lag * 1000)
+            expected = now + interval
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -202,8 +287,13 @@ def create_app(
             loop.slow_callback_duration = 0.1
             logger.info("Asyncio debug mode enabled")
         await mac_controller.start()
-        revocation_task = asyncio.create_task(
-            watch_revocations(), name="airmac-revocation-monitor"
+        monitor_tasks = (
+            asyncio.create_task(
+                watch_sessions(), name="airmac-session-monitor"
+            ),
+            asyncio.create_task(
+                watch_event_loop_lag(), name="airmac-event-loop-monitor"
+            ),
         )
         local_ip = get_local_ip()
         logger.info("AirMac started: http://%s:%s", local_ip, PORT)
@@ -214,8 +304,9 @@ def create_app(
         try:
             yield
         finally:
-            revocation_task.cancel()
-            await asyncio.gather(revocation_task, return_exceptions=True)
+            for task in monitor_tasks:
+                task.cancel()
+            await asyncio.gather(*monitor_tasks, return_exceptions=True)
             await pairing_manager.close()
             await mac_controller.stop()
 
@@ -240,6 +331,24 @@ def create_app(
         if icon_path.exists():
             return FileResponse(icon_path)
         return Response(status_code=404)
+
+    @application.get("/frontend_state.js")
+    async def get_frontend_state(request: Request) -> FileResponse:
+        request_ip(request)
+        return FileResponse(
+            PROJECT_DIR / "frontend_state.js",
+            media_type="text/javascript",
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @application.get("/api/health")
+    async def get_health(request: Request) -> dict[str, object]:
+        request_ip(request)
+        session = await sessions.snapshot()
+        return {
+            "status": "ok",
+            "controller": "connected" if session else "idle",
+        }
 
     @application.post("/api/pairing/start")
     async def start_pairing(
@@ -337,14 +446,36 @@ def create_app(
                 await websocket.close(code=4009, reason="controller_busy")
                 return
             claimed = True
+            try:
+                await asyncio.to_thread(device_store.touch, session.device_id)
+            except Exception:
+                logger.exception(
+                    "Unable to update last_seen device=%s", session.device_id
+                )
             await websocket.send_json({"type": "auth_ok"})
             logger.info(
-                "WebSocket connected client=%s device=%s",
+                "WebSocket connected session=%s client=%s device=%s",
+                session.session_id,
                 client.host,
                 auth_message.device_id,
             )
 
             async def notify(payload: dict[str, object]) -> None:
+                if (
+                    payload.get("type") == "action_result"
+                    and payload.get("action") == "type_text"
+                    and isinstance(payload.get("request_id"), str)
+                ):
+                    request_id = str(payload["request_id"])
+                    if payload.get("status") == "ok":
+                        await sessions.record_projection(
+                            session.device_id, request_id
+                        )
+                    elif payload.get("status") == "error":
+                        try:
+                            session.projection_ids.remove(request_id)
+                        except ValueError:
+                            pass
                 active = await sessions.snapshot()
                 if active is not session:
                     return
@@ -353,11 +484,13 @@ def create_app(
 
             while True:
                 raw_message = await websocket.receive_text()
+                session.last_activity = time.monotonic()
                 try:
                     action = parse_action_message(raw_message)
                 except (json.JSONDecodeError, ValidationError, ValueError):
                     logger.warning(
-                        "Rejected invalid message client=%s device=%s bytes=%s",
+                        "Rejected invalid message session=%s client=%s device=%s bytes=%s",
+                        session.session_id,
                         client.host,
                         session.device_id,
                         len(raw_message.encode("utf-8")),
@@ -370,13 +503,46 @@ def create_app(
                 if action.action == "heartbeat":
                     await notify({"type": "heartbeat_ack"})
                     continue
+                if isinstance(action, TypeTextAction):
+                    if (
+                        action.request_id in session.projection_ids
+                        or await sessions.projection_completed(
+                            session.device_id, action.request_id
+                        )
+                    ):
+                        await notify(
+                            {
+                                "type": "action_result",
+                                "action": "type_text",
+                                "request_id": action.request_id,
+                                "status": "duplicate",
+                            }
+                        )
+                        continue
+                    session.projection_ids.append(action.request_id)
                 if not await mac_controller.dispatch(action, notify):
                     logger.warning(
-                        "Input queue full action=%s device=%s",
+                        "Input queue full session=%s action=%s device=%s",
+                        session.session_id,
                         action.action,
                         session.device_id,
                     )
-                    await notify({"type": "error", "code": "queue_full"})
+                    if isinstance(action, TypeTextAction):
+                        try:
+                            session.projection_ids.remove(action.request_id)
+                        except ValueError:
+                            pass
+                        await notify(
+                            {
+                                "type": "action_result",
+                                "action": "type_text",
+                                "request_id": action.request_id,
+                                "status": "error",
+                                "code": "queue_full",
+                            }
+                        )
+                    else:
+                        await notify({"type": "error", "code": "queue_full"})
         except asyncio.TimeoutError:
             logger.warning("WebSocket authentication timeout client=%s", client.host)
             await websocket.close(code=4008, reason="authentication_timeout")
@@ -385,7 +551,8 @@ def create_app(
             await websocket.close(code=4003, reason="authentication_failed")
         except WebSocketDisconnect as exc:
             logger.info(
-                "WebSocket disconnected client=%s device=%s code=%s category=%s reason=%s",
+                "WebSocket disconnected session=%s client=%s device=%s code=%s category=%s reason=%s",
+                session.session_id if session else "-",
                 client.host,
                 session.device_id if session else "unauthenticated",
                 exc.code,

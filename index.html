@@ -187,9 +187,13 @@
             flex-shrink: 0;
         }
         
-        .projection-bar input {
+        .projection-bar textarea {
             flex: 1;
-            padding: 16px 20px;
+            box-sizing: border-box;
+            height: 52px;
+            min-height: 52px;
+            max-height: 104px;
+            padding: 15px 18px;
             border-radius: 24px;
             border: 1px solid var(--glass-border);
             background: rgba(0,0,0,0.2);
@@ -198,15 +202,22 @@
             font-size: 15px;
             outline: none;
             transition: border-color 0.3s;
+            resize: none;
+            font-family: inherit;
+            line-height: 20px;
         }
 
-        .projection-bar input::placeholder {
+        .projection-bar textarea::placeholder {
             color: rgba(255, 255, 255, 0.4); 
             font-weight: 300;
         }
 
-        .projection-bar input:focus {
+        .projection-bar textarea:focus {
             border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .projection-bar textarea:read-only {
+            opacity: 0.65;
         }
 
         /* Unified Send Button */
@@ -231,6 +242,25 @@
         .send-btn:active {
             transform: scale(0.92);
             background: rgba(255, 255, 255, 0.15);
+        }
+
+        .send-btn:disabled,
+        .clear-btn:disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+
+        .clear-btn {
+            width: 38px;
+            height: 38px;
+            flex-shrink: 0;
+            border-radius: 50%;
+            border: 1px solid var(--glass-border);
+            background: rgba(0, 0, 0, 0.2);
+            color: rgba(255, 255, 255, 0.72);
+            font-size: 24px;
+            font-weight: 300;
+            line-height: 1;
         }
 
         .send-btn svg {
@@ -422,18 +452,20 @@
 
         <!-- Projection Bar -->
         <div class="projection-bar">
-            <input type="text" id="projection-input" placeholder="输入长文本投射到Mac..." />
-            <div class="send-btn" id="projection-btn">
+            <textarea id="projection-input" rows="1" maxlength="32768" placeholder="输入长文本投射到Mac..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+            <button type="button" class="clear-btn" id="projection-clear" aria-label="清空长文本">×</button>
+            <button type="button" class="send-btn" id="projection-btn" aria-label="发送长文本">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
                     <line x1="22" y1="2" x2="11" y2="13"></line>
                     <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                 </svg>
-            </div>
+            </button>
         </div>
         
         <input type="text" id="hidden-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
     </div>
 
+    <script src="/frontend_state.js"></script>
     <script>
         // Matrix Rain Setup
         const canvas = document.getElementById('matrixCanvas');
@@ -495,6 +527,7 @@
         let deviceName = localStorage.getItem(credentialKeys.deviceName) || 'iPhone';
         let pairingChallengeId = null;
         let reconnectTimer = null;
+        const reconnectBackoff = new AirMacState.ReconnectBackoff();
         let shouldReconnect = true;
         let isPageSuspended = document.hidden;
 
@@ -656,6 +689,7 @@
                 ws = null;
                 isConnected = false;
                 clearTimeout(reconnectProbeTimer);
+                failPendingProjection('连接中断，文本尚未确认发送');
                 if (e.code === 4003) {
                     clearCredentials();
                     spinner.style.display = 'none';
@@ -671,7 +705,7 @@
                 } else if (shouldReconnect) {
                     hintText.textContent = "断开连接，重连中...";
                     spinner.style.display = 'block';
-                    scheduleReconnect(2000);
+                    scheduleReconnect();
                 }
             };
             socket.onerror = (err) => {
@@ -684,6 +718,7 @@
                     const data = JSON.parse(event.data);
                     if (data.type === 'auth_ok') {
                         isConnected = true;
+                        reconnectBackoff.reset();
                         hintText.textContent = '';
                         spinner.style.display = 'none';
                     } else if (data.type === 'auth_failed') {
@@ -695,6 +730,8 @@
                         setTimeout(() => { hintText.textContent = ""; }, 2000);
                     } else if (data.type === 'error' && data.code === 'queue_full') {
                         hintText.textContent = '指令过快，已丢弃部分输入';
+                    } else if (data.type === 'action_result' && data.action === 'type_text') {
+                        finishProjection(data);
                     }
                 } catch (e) {
                     console.error("Error parsing message:", e);
@@ -705,11 +742,12 @@
         function scheduleReconnect(delay) {
             if (isPageSuspended || !shouldReconnect || !deviceId || !deviceToken) return;
             clearTimeout(reconnectTimer);
-            reconnectTimer = setTimeout(connect, delay);
+            reconnectTimer = setTimeout(connect, reconnectBackoff.next(delay ?? null));
         }
 
         function forceReconnect(reason) {
             if (isPageSuspended || !deviceId || !deviceToken || !shouldReconnect) return;
+            failPendingProjection('连接超时，文本内容已保留');
             const staleSocket = ws;
             ws = null;
             isConnected = false;
@@ -738,6 +776,7 @@
         function suspendConnection() {
             if (isPageSuspended) return;
             isPageSuspended = true;
+            failPendingProjection('页面已暂停，文本内容已保留');
             clearTimeout(reconnectTimer);
             clearTimeout(reconnectProbeTimer);
             isConnected = false;
@@ -759,8 +798,10 @@
         function resumeConnection() {
             isPageSuspended = false;
             shouldReconnect = true;
+            reconnectBackoff.reset();
             lastServerActivity = Date.now();
             if (deviceId && deviceToken) connect();
+            restoreProjectionState();
         }
 
         setInterval(probeConnection, 5000);
@@ -783,9 +824,11 @@
         function sendCmd(cmd) {
             if (isConnected && ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify(cmd));
+                return true;
             } else if (deviceId && deviceToken) {
                 probeConnection();
             }
+            return false;
         }
 
         // --- Trackpad Logic ---
@@ -798,7 +841,7 @@
         let isDragging = false;
         let lastTapTime = 0;
         let isDoubleTap = false;
-        let gestureMaxTouches = 0;
+        const gestureTouches = new AirMacState.GestureTouches();
 
         function triggerAutoCopy() {
             setTimeout(() => {
@@ -808,8 +851,8 @@
 
         trackpad.addEventListener('touchstart', (e) => {
             e.preventDefault(); 
-            const isNewGesture = gestureMaxTouches === 0;
-            gestureMaxTouches = Math.max(gestureMaxTouches, e.touches.length);
+            const isNewGesture = gestureTouches.max === 0;
+            gestureTouches.observe(e.touches.length);
             if (e.touches.length > 1) {
                 lastTapTime = 0;
                 isDoubleTap = false;
@@ -867,7 +910,7 @@
         trackpad.addEventListener('touchmove', (e) => {
             e.preventDefault();
             if (!lastTouch) return;
-            gestureMaxTouches = Math.max(gestureMaxTouches, e.touches.length);
+            gestureTouches.observe(e.touches.length);
             
             isMoved = true;
             clearTimeout(dragTimer);
@@ -929,6 +972,7 @@
             e.preventDefault();
             clearTimeout(dragTimer);
             const touchDuration = Date.now() - lastTouchTime;
+            const completedTouchCount = gestureTouches.finish(e.touches.length);
 
             // Wait for the final finger before classifying the gesture. This avoids
             // a two-finger tap becoming a right-click followed by a left-click.
@@ -951,24 +995,23 @@
                     if (navigator.vibrate) navigator.vibrate(15);
                     triggerAutoCopy();
                 } else if (!isMoved && !isThreeFingerSwiped) {
-                    if (touchDuration < 500 && gestureMaxTouches === 1) {
+                    if (touchDuration < 500 && completedTouchCount === 1) {
                         if (!isDoubleTap) {
                             sendCmd({ action: 'click', button: 'left' });
                             if (navigator.vibrate) navigator.vibrate(15);
                         } else {
                             isDoubleTap = false;
                         }
-                    } else if (touchDuration < 500 && gestureMaxTouches === 2) {
+                    } else if (touchDuration < 500 && completedTouchCount === 2) {
                         sendCmd({ action: 'click', button: 'right' });
                         if (navigator.vibrate) navigator.vibrate(15);
-                    } else if (touchDuration >= 500 && gestureMaxTouches === 1) {
+                    } else if (touchDuration >= 500 && completedTouchCount === 1) {
                         sendCmd({ action: 'click', button: 'right' });
                         if (navigator.vibrate) navigator.vibrate(15);
                     }
                 }
                 lastTouch = null;
                 isThreeFingerSwiped = false;
-                gestureMaxTouches = 0;
             }
         }, { passive: false });
 
@@ -980,7 +1023,7 @@
                 sendCmd({ action: 'mouse_up' });
             }
             lastTouch = null;
-            gestureMaxTouches = 0;
+            gestureTouches.reset();
         }, { passive: false });
 
         // --- Button Controls ---
@@ -1008,15 +1051,119 @@
             if (navigator.vibrate) navigator.vibrate(15);
         });
 
-        document.getElementById('projection-btn').addEventListener('click', (e) => {
-            e.preventDefault();
-            const textInput = document.getElementById('projection-input');
-            const text = textInput.value;
-            if (text) {
-                sendCmd({ action: 'type_text', text: text });
-                textInput.value = '';
-                if (navigator.vibrate) navigator.vibrate(15);
+        const projectionInput = document.getElementById('projection-input');
+        const projectionButton = document.getElementById('projection-btn');
+        const projectionClear = document.getElementById('projection-clear');
+        let projectionComposing = false;
+        const projectionState = new AirMacState.ProjectionState();
+        let retryProjection = null;
+
+        function projectionRequestId() {
+            if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                return window.crypto.randomUUID();
             }
+            return `text_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        }
+
+        function setProjectionBusy(isBusy) {
+            projectionInput.readOnly = isBusy;
+            projectionButton.disabled = isBusy;
+            projectionClear.disabled = isBusy;
+        }
+
+        function clearProjection(forgetConfirmed = true) {
+            projectionInput.value = '';
+            projectionInput.defaultValue = '';
+            if (forgetConfirmed) projectionState.forgetConfirmed();
+            projectionInput.style.height = '52px';
+        }
+
+        function failPendingProjection(message) {
+            const failed = projectionState.fail();
+            if (!failed) return;
+            retryProjection = failed;
+            setProjectionBusy(false);
+            hintText.textContent = message;
+        }
+
+        function finishProjection(result) {
+            const completed = projectionState.finish(result.request_id, result.status);
+            if (completed.outcome === 'ignored') return;
+            if (completed.outcome === 'confirmed') {
+                retryProjection = null;
+                clearProjection(false);
+                setProjectionBusy(false);
+                hintText.textContent = '文本已发送';
+                setTimeout(() => {
+                    if (hintText.textContent === '文本已发送') hintText.textContent = '';
+                }, 1600);
+            } else {
+                retryProjection = {
+                    requestId: result.request_id,
+                    text: completed.text,
+                };
+                setProjectionBusy(false);
+                hintText.textContent = '文本发送失败，内容已保留';
+            }
+        }
+
+        function restoreProjectionState() {
+            if (projectionState.shouldClearRestored(projectionInput.value)) {
+                clearProjection(false);
+            }
+        }
+
+        function submitProjection() {
+            if (projectionState.isPending || projectionComposing) return;
+            const text = projectionInput.value;
+            if (!text) return;
+            const utf8Bytes = new TextEncoder().encode(text).length;
+            if (utf8Bytes > 32768) {
+                hintText.textContent = '文本超过 32 KiB，请缩短后重试';
+                return;
+            }
+            projectionInput.blur();
+            const requestId = retryProjection && retryProjection.text === text
+                ? retryProjection.requestId
+                : projectionRequestId();
+            if (!projectionState.begin(requestId, text)) return;
+            retryProjection = null;
+            setProjectionBusy(true);
+            if (!sendCmd({ action: 'type_text', request_id: requestId, text })) {
+                failPendingProjection('尚未连接，内容已保留');
+                return;
+            }
+            hintText.textContent = '正在发送文本...';
+            if (navigator.vibrate) navigator.vibrate(15);
+        }
+
+        projectionButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (projectionComposing) {
+                projectionInput.blur();
+                setTimeout(submitProjection, 0);
+            } else {
+                submitProjection();
+            }
+        });
+        projectionClear.addEventListener('click', (e) => {
+            e.preventDefault();
+            retryProjection = null;
+            clearProjection();
+            projectionInput.focus();
+            if (navigator.vibrate) navigator.vibrate(10);
+        });
+        projectionInput.addEventListener('compositionstart', () => {
+            projectionComposing = true;
+        });
+        projectionInput.addEventListener('compositionend', () => {
+            projectionComposing = false;
+        });
+        projectionInput.addEventListener('input', () => {
+            projectionState.noteUserInput();
+            retryProjection = null;
+            projectionInput.style.height = '52px';
+            projectionInput.style.height = `${Math.min(104, projectionInput.scrollHeight)}px`;
         });
 
         // --- Keyboard Logic ---

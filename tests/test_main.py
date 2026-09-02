@@ -32,6 +32,36 @@ class FakeController:
         return True
 
 
+class CompletingController(FakeController):
+    async def dispatch(self, action: Any, notify: Any) -> bool:
+        self.actions.append(action)
+        if isinstance(action, main.TypeTextAction):
+            await notify(
+                {
+                    "type": "action_result",
+                    "action": "type_text",
+                    "request_id": action.request_id,
+                    "status": "ok",
+                }
+            )
+        return True
+
+
+class FailingProjectionController(FakeController):
+    async def dispatch(self, action: Any, notify: Any) -> bool:
+        self.actions.append(action)
+        if isinstance(action, main.TypeTextAction):
+            await notify(
+                {
+                    "type": "action_result",
+                    "action": "type_text",
+                    "request_id": action.request_id,
+                    "status": "error",
+                }
+            )
+        return True
+
+
 @pytest.fixture
 def app_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     store = DeviceStore(tmp_path / "devices.json")
@@ -99,6 +129,13 @@ def test_frontend_is_not_cached(app_client: tuple[Any, ...]) -> None:
     assert response.headers["cache-control"] == "no-store"
 
 
+def test_health_endpoint_is_sanitized(app_client: tuple[Any, ...]) -> None:
+    client, _, _ = app_client
+    response = client.get("/api/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "controller": "idle"}
+
+
 def test_legacy_query_identity_is_rejected_without_retry(
     app_client: tuple[Any, ...]
 ) -> None:
@@ -142,6 +179,89 @@ def test_heartbeat_is_acknowledged_without_dispatch(
         websocket.send_json({"action": "heartbeat"})
         assert websocket.receive_json() == {"type": "heartbeat_ack"}
     assert controller.actions == []
+
+
+def test_duplicate_text_projection_is_not_dispatched_twice(
+    app_client: tuple[Any, ...]
+) -> None:
+    client, store, controller = app_client
+    device_id, token = store.issue_device("Projection Phone")
+    payload = {
+        "action": "type_text",
+        "request_id": "projection_request_1",
+        "text": "only once",
+    }
+    with authenticate_socket(client, device_id, token) as websocket:
+        websocket.send_json(
+            {"type": "authenticate", "device_id": device_id, "token": token}
+        )
+        assert websocket.receive_json() == {"type": "auth_ok"}
+        websocket.send_json(payload)
+        websocket.send_json(payload)
+        assert websocket.receive_json() == {
+            "type": "action_result",
+            "action": "type_text",
+            "request_id": "projection_request_1",
+            "status": "duplicate",
+        }
+    assert len(controller.actions) == 1
+
+
+def test_completed_projection_is_deduplicated_after_reconnect(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = DeviceStore(tmp_path / "devices.json")
+    controller = CompletingController()
+    monkeypatch.setattr(main, "is_allowed_ip", lambda _: True)
+    application = main.create_app(store=store, controller=controller)
+    device_id, token = store.issue_device("Retry Phone")
+    payload = {
+        "action": "type_text",
+        "request_id": "projection_retry_1",
+        "text": "send once across reconnect",
+    }
+    with TestClient(application) as client:
+        with authenticate_socket(client, device_id, token) as first:
+            first.send_json(
+                {"type": "authenticate", "device_id": device_id, "token": token}
+            )
+            assert first.receive_json() == {"type": "auth_ok"}
+            first.send_json(payload)
+            assert first.receive_json()["status"] == "ok"
+        with authenticate_socket(client, device_id, token) as second:
+            second.send_json(
+                {"type": "authenticate", "device_id": device_id, "token": token}
+            )
+            assert second.receive_json() == {"type": "auth_ok"}
+            second.send_json(payload)
+            assert second.receive_json()["status"] == "duplicate"
+    assert len(controller.actions) == 1
+
+
+def test_failed_projection_can_retry_same_request_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = DeviceStore(tmp_path / "devices.json")
+    controller = FailingProjectionController()
+    monkeypatch.setattr(main, "is_allowed_ip", lambda _: True)
+    application = main.create_app(store=store, controller=controller)
+    device_id, token = store.issue_device("Retry Failure Phone")
+    payload = {
+        "action": "type_text",
+        "request_id": "projection_failure_1",
+        "text": "retry me",
+    }
+    with TestClient(application) as client:
+        with authenticate_socket(client, device_id, token) as websocket:
+            websocket.send_json(
+                {"type": "authenticate", "device_id": device_id, "token": token}
+            )
+            assert websocket.receive_json() == {"type": "auth_ok"}
+            websocket.send_json(payload)
+            assert websocket.receive_json()["status"] == "error"
+            websocket.send_json(payload)
+            assert websocket.receive_json()["status"] == "error"
+    assert len(controller.actions) == 2
 
 
 def test_websocket_rejects_bad_origin(app_client: tuple[Any, ...]) -> None:
@@ -237,3 +357,28 @@ def test_revoked_active_device_is_disconnected(app_client: tuple[Any, ...]) -> N
         with pytest.raises(WebSocketDisconnect) as closed:
             websocket.receive_json()
         assert closed.value.code == 4003
+
+
+def test_idle_session_is_closed_and_releases_controller(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = DeviceStore(tmp_path / "devices.json")
+    controller = FakeController()
+    monkeypatch.setattr(main, "is_allowed_ip", lambda _: True)
+    application = main.create_app(
+        store=store,
+        controller=controller,
+        session_idle_timeout=0.03,
+        monitor_interval=0.01,
+    )
+    device_id, token = store.issue_device("Idle Phone")
+    with TestClient(application) as client:
+        with authenticate_socket(client, device_id, token) as websocket:
+            websocket.send_json(
+                {"type": "authenticate", "device_id": device_id, "token": token}
+            )
+            assert websocket.receive_json() == {"type": "auth_ok"}
+            with pytest.raises(WebSocketDisconnect) as closed:
+                websocket.receive_json()
+            assert closed.value.code == 4004
+    assert controller.reset_count >= 2

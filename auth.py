@@ -116,6 +116,31 @@ class DeviceStore:
     def contains(self, device_id: str) -> bool:
         return device_id in self._read_unlocked()["devices"]
 
+    def touch(self, device_id: str, min_interval_seconds: float = 60.0) -> bool:
+        lock = self._locked_file()
+        try:
+            data = self._read_unlocked()
+            record = data["devices"].get(device_id)
+            if not isinstance(record, dict):
+                return False
+            now = datetime.now(UTC)
+            try:
+                last_seen = datetime.fromisoformat(str(record.get("last_seen", "")))
+            except ValueError:
+                last_seen = None
+            if (
+                last_seen is not None
+                and last_seen.tzinfo is not None
+                and (now - last_seen).total_seconds() < min_interval_seconds
+            ):
+                return True
+            record["last_seen"] = now.isoformat()
+            self._write_unlocked(data)
+            return True
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+            lock.close()
+
     def list_devices(self) -> list[dict[str, str]]:
         devices = []
         for device_id, record in self._read_unlocked()["devices"].items():

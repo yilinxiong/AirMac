@@ -19,6 +19,7 @@ AirMac turns an iPhone into a low-latency trackpad and keyboard for a Mac on the
 - Three-finger Mission Control and desktop switching
 - Long-press dragging with disconnect-safe mouse release
 - Keyboard input and long-text projection
+- Confirmed long-text delivery with a dedicated clear button
 - Automatic copy feedback with a native macOS HUD
 - Media, fullscreen, display sleep, and wake controls
 - Six-digit, short-lived pairing codes and revocable device tokens
@@ -50,6 +51,15 @@ Open the URL printed by AirMac in iPhone Safari. On first use, name the phone, r
 
 Add the page to the iPhone Home Screen for the full-screen experience.
 
+Locking the iPhone or sending the page to the background intentionally pauses the
+WebSocket. Returning to AirMac reconnects automatically. The server expires an
+unresponsive foreground session after 16 seconds so a stale mobile connection
+cannot hold the controller indefinitely.
+
+The wake button holds a cancellable display-sleep assertion for 30 seconds. This
+prevents the display from immediately sleeping again while leaving the normal
+macOS password and lock-screen policy unchanged.
+
 ### Paired-device management
 
 Run these commands locally on the Mac:
@@ -58,6 +68,8 @@ Run these commands locally on the Mac:
 python manage_devices.py list
 python manage_devices.py revoke DEVICE_ID
 python manage_devices.py clear --yes
+python manage_devices.py status
+python manage_devices.py diagnose
 ```
 
 Revoked active devices are disconnected within approximately one second. Device records are stored with user-only permissions at:
@@ -72,7 +84,7 @@ Logs from the LaunchAgent are stored at:
 ~/Library/Logs/AirMac/remote.log
 ```
 
-Every log line includes local time with millisecond precision. Slow pointer events report queue and Quartz execution time separately, making network interruptions distinguishable from macOS input stalls.
+Every log line includes local time with millisecond precision. Slow pointer events report queue and Quartz execution time separately, making network interruptions distinguishable from macOS input stalls. LaunchAgent logs rotate at 5 MiB with four backups, limiting the main log set to approximately 25 MiB.
 
 The legacy `whitelist.json` format is intentionally not migrated because its client-generated IDs were not secure credentials. Existing devices must pair again after upgrading.
 
@@ -83,6 +95,7 @@ If the installed Swift compiler and macOS SDK do not match, installation continu
 ```bash
 pip install -r requirements-dev.txt
 pytest
+node --test tests/frontend_state.test.js
 bash -n install_service.sh uninstall_service.sh
 ```
 
@@ -99,6 +112,7 @@ AirMac 可以把同一可信局域网中的 iPhone 变成 Mac 的低延迟触控
 - 三指调度中心及桌面切换
 - 长按拖拽，断线时自动释放鼠标
 - 手机键盘输入和长文本投射
+- 长文本执行确认以及独立的一键清空按钮
 - 自动复制与 macOS 原生 HUD 提示
 - 媒体、全屏、息屏与唤醒控制
 - 6 位短时验证码配对、可撤销设备令牌
@@ -130,6 +144,12 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --ws-max-size 65536 --log-config log
 
 推荐通过 Safari 分享菜单选择“添加到主屏幕”。
 
+iPhone 锁屏或页面进入后台时会主动暂停 WebSocket；回到 AirMac 后自动恢复。
+服务端会在前台连接连续 16 秒没有心跳时清理僵尸会话，避免旧连接长期占用控制器。
+
+唤醒按钮会建立 30 秒、可取消的显示器保活断言，避免刚唤醒又立刻息屏；它不会绕过
+macOS 的锁屏或密码策略。
+
 如果 Swift 编译器与 macOS SDK 不匹配，安装仍会继续，复制反馈会自动退回 macOS 系统通知。
 
 ### 管理设备
@@ -140,11 +160,13 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --ws-max-size 65536 --log-config log
 python manage_devices.py list
 python manage_devices.py revoke 设备ID
 python manage_devices.py clear --yes
+python manage_devices.py status
+python manage_devices.py diagnose
 ```
 
 撤销后，正在连接的设备会在约一秒内断开。旧版 `whitelist.json` 不会迁移或自动删除；升级后需要重新配对一次。
 
-后台日志位于 `~/Library/Logs/AirMac/remote.log`。每行包含精确到毫秒的本地时间；若指针处理变慢，日志会分别记录排队时间和 Quartz 执行时间，方便区分网络中断与 Mac 输入层阻塞。
+后台日志位于 `~/Library/Logs/AirMac/remote.log`。每行包含精确到毫秒的本地时间；若指针处理变慢，日志会分别记录排队时间和 Quartz 执行时间，方便区分网络中断与 Mac 输入层阻塞。日志每 5 MiB 轮转，保留 4 份备份，主日志集合约占 25 MiB。
 
 卸载后台服务不会删除设备记录或日志：
 

@@ -6,11 +6,35 @@ import asyncio
 import pytest
 
 from mac_controller import MacController, PointerQueue, QueuedAction
-from protocol import MoveAction, parse_action_message
+from protocol import MoveAction, ScrollAction, parse_action_message
 
 
 async def noop_notify(_: dict[str, object]) -> None:
     pass
+
+
+class FakeProcess:
+    def __init__(self) -> None:
+        self.returncode: int | None = None
+        self.finished = asyncio.Event()
+        self.terminated = False
+
+    async def wait(self) -> int:
+        await self.finished.wait()
+        assert self.returncode is not None
+        return self.returncode
+
+    async def communicate(self, _input: bytes | None = None) -> tuple[bytes, bytes]:
+        await self.finished.wait()
+        return b"", b""
+
+    def terminate(self) -> None:
+        self.terminated = True
+        self.returncode = -15
+        self.finished.set()
+
+    def kill(self) -> None:
+        self.terminate()
 
 
 @pytest.mark.asyncio
@@ -42,6 +66,18 @@ async def test_pointer_queue_does_not_merge_across_state_event() -> None:
 
 
 @pytest.mark.asyncio
+async def test_pointer_queue_coalesces_scroll_bursts() -> None:
+    queue = PointerQueue(maxsize=2)
+    for dy in (3, 5, -2):
+        scroll = parse_action_message(json.dumps({"action": "scroll", "dy": dy}))
+        assert await queue.put(QueuedAction(scroll, 1, noop_notify))
+    merged = await queue.get()
+    assert isinstance(merged.message, ScrollAction)
+    assert merged.message.dy == 6
+    assert queue.merged_count == 2
+
+
+@pytest.mark.asyncio
 async def test_control_worker_serializes_clipboard_actions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -66,7 +102,13 @@ async def test_control_worker_serializes_clipboard_actions(
         )
         assert await controller.dispatch(
             parse_action_message(
-                json.dumps({"action": "type_text", "text": "second"})
+                json.dumps(
+                    {
+                        "action": "type_text",
+                        "request_id": "request_second",
+                        "text": "second",
+                    }
+                )
             ),
             noop_notify,
         )
@@ -115,3 +157,155 @@ async def test_reset_cancels_active_control_and_releases_input(
         assert releases == ["pointer", "modifiers"]
     finally:
         await controller.stop()
+
+
+@pytest.mark.asyncio
+async def test_stale_pointer_motion_is_discarded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    controller = MacController()
+    executed: list[str] = []
+    move = parse_action_message(json.dumps({"action": "move", "dx": 1, "dy": 1}))
+    item = QueuedAction(move, controller.generation, noop_notify)
+    item.enqueued_at -= 1
+    await controller.pointer_queue.put(item)
+    monkeypatch.setattr(
+        controller, "_execute_pointer", lambda message: executed.append(message.action)
+    )
+    monkeypatch.setattr(controller, "_release_pointer", lambda: None)
+    monkeypatch.setattr(controller, "_release_modifiers", lambda: None)
+    await controller.start()
+    try:
+        await asyncio.sleep(0.02)
+        assert executed == []
+        assert controller.expired_pointer_actions == 1
+    finally:
+        await controller.stop()
+
+
+@pytest.mark.asyncio
+async def test_text_projection_reports_completion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    controller = MacController()
+    notifications: list[dict[str, object]] = []
+
+    async def notify(payload: dict[str, object]) -> None:
+        notifications.append(payload)
+
+    async def fake_type_text(_: str) -> None:
+        pass
+
+    monkeypatch.setattr(controller, "_type_text", fake_type_text)
+    monkeypatch.setattr(controller, "_release_pointer", lambda: None)
+    monkeypatch.setattr(controller, "_release_modifiers", lambda: None)
+    await controller.start()
+    try:
+        message = parse_action_message(
+            json.dumps(
+                {
+                    "action": "type_text",
+                    "request_id": "projection_ack_1",
+                    "text": "hello",
+                }
+            )
+        )
+        assert await controller.dispatch(message, notify)
+        await asyncio.wait_for(controller.control_queue.join(), timeout=1)
+        assert notifications == [
+            {
+                "type": "action_result",
+                "action": "type_text",
+                "request_id": "projection_ack_1",
+                "status": "ok",
+            }
+        ]
+    finally:
+        await controller.stop()
+
+
+@pytest.mark.asyncio
+async def test_wake_uses_nonblocking_display_assertion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    controller = MacController()
+    process = FakeProcess()
+    calls: list[tuple[object, ...]] = []
+
+    async def fake_create_subprocess_exec(*args: object, **_: object) -> FakeProcess:
+        calls.append(args)
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
+    monkeypatch.setattr(controller, "_press_and_release", lambda _: None)
+    monkeypatch.setattr(controller, "_release_pointer", lambda: None)
+    monkeypatch.setattr(controller, "_release_modifiers", lambda: None)
+
+    started = asyncio.get_running_loop().time()
+    await controller._wake_display()
+    elapsed = asyncio.get_running_loop().time() - started
+    assert calls == [("caffeinate", "-d", "-u", "-t", "30")]
+    assert elapsed < 1
+    assert process.returncode is None
+    await controller.reset()
+    assert not process.terminated
+    await controller._stop_wake_assertion()
+    assert process.terminated
+
+
+@pytest.mark.asyncio
+async def test_subprocess_timeout_terminates_child(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    controller = MacController()
+    process = FakeProcess()
+
+    async def fake_create_subprocess_exec(*_: object, **__: object) -> FakeProcess:
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
+    with pytest.raises(RuntimeError, match="timed out"):
+        await controller._run_process("osascript", timeout=0.01)
+    assert process.terminated
+
+
+@pytest.mark.asyncio
+async def test_text_projection_restores_unchanged_clipboard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    controller = MacController()
+    clipboard_reads = iter(["original clipboard", "projected text"])
+    clipboard_writes: list[str] = []
+
+    async def clipboard_read() -> str:
+        return next(clipboard_reads)
+
+    async def clipboard_write(value: str) -> None:
+        clipboard_writes.append(value)
+
+    monkeypatch.setattr(controller, "_clipboard_read", clipboard_read)
+    monkeypatch.setattr(controller, "_clipboard_write", clipboard_write)
+    monkeypatch.setattr(controller, "_paste", lambda: None)
+    monkeypatch.setattr(controller, "_press_and_release", lambda _: None)
+
+    await controller._type_text("projected text")
+    assert clipboard_writes == ["projected text", "original clipboard"]
+
+
+@pytest.mark.asyncio
+async def test_cancelled_clipboard_process_is_terminated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    controller = MacController()
+    process = FakeProcess()
+
+    async def fake_create_subprocess_exec(*_: object, **__: object) -> FakeProcess:
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
+    task = asyncio.create_task(controller._clipboard_read())
+    await asyncio.sleep(0)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert process.terminated

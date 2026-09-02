@@ -42,7 +42,7 @@ def test_auth_message_is_strict() -> None:
         {"action": "type", "char": "你好"},
         {"action": "keydown", "key": "Backspace"},
         {"action": "media", "command": "playpause"},
-        {"action": "type_text", "text": "hello"},
+        {"action": "type_text", "request_id": "request_123", "text": "hello"},
         {"action": "mouse_up"},
         {"action": "heartbeat"},
     ],
@@ -69,7 +69,13 @@ def test_invalid_actions_are_rejected(raw: str) -> None:
 
 
 def test_oversized_message_is_rejected() -> None:
-    raw = json.dumps({"action": "type_text", "text": "x" * MAX_MESSAGE_BYTES})
+    raw = json.dumps(
+        {
+            "action": "type_text",
+            "request_id": "request_oversized",
+            "text": "x" * MAX_MESSAGE_BYTES,
+        }
+    )
     with pytest.raises(ValueError, match="message_too_large"):
         parse_action_message(raw)
 
@@ -77,13 +83,37 @@ def test_oversized_message_is_rejected() -> None:
 def test_type_text_limit_is_measured_in_utf8_bytes() -> None:
     assert parse_action_message(
         json.dumps(
-            {"action": "type_text", "text": "界" * 10_922}, ensure_ascii=False
+            {
+                "action": "type_text",
+                "request_id": "request_utf8_ok",
+                "text": "界" * 10_922,
+            },
+            ensure_ascii=False,
         )
     ).action == "type_text"
     with pytest.raises(ValidationError, match="32 KiB"):
         parse_action_message(
             json.dumps(
-                {"action": "type_text", "text": "界" * 10_923},
+                {
+                    "action": "type_text",
+                    "request_id": "request_utf8_large",
+                    "text": "界" * 10_923,
+                },
                 ensure_ascii=False,
+            )
+        )
+
+
+def test_type_text_requires_safe_request_id() -> None:
+    with pytest.raises(ValidationError):
+        parse_action_message(json.dumps({"action": "type_text", "text": "missing"}))
+    with pytest.raises(ValidationError):
+        parse_action_message(
+            json.dumps(
+                {
+                    "action": "type_text",
+                    "request_id": "bad request id",
+                    "text": "invalid",
+                }
             )
         )

@@ -52,6 +52,9 @@ def test_device_store_hashes_tokens_and_revokes(tmp_path: Path) -> None:
     assert stat.S_IMODE(store_path.parent.stat().st_mode) == 0o700
 
     assert store.list_devices()[0]["name"] == "Test iPhone"
+    previous_last_seen = store.list_devices()[0]["last_seen"]
+    assert store.touch(device_id, min_interval_seconds=0)
+    assert store.list_devices()[0]["last_seen"] > previous_last_seen
     assert store.revoke(device_id)
     assert not store.contains(device_id)
     assert not store.revoke(device_id)

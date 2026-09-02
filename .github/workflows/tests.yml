@@ -1,0 +1,30 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    strategy:
+      matrix:
+        os: [macos-14, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Python tests
+        run: python -m pytest -q
+      - name: Frontend state tests
+        run: node --test tests/frontend_state.test.js
+      - name: Static checks
+        run: |
+          python -m compileall -q main.py auth.py protocol.py mac_controller.py manage_devices.py pairing_dialog.py tests
+          sed -n '/<script>$/,/<\/script>/p' index.html | sed '1d;$d' | node --check -
+          bash -n install_service.sh uninstall_service.sh
+          python -m pip check

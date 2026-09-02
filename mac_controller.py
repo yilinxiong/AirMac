@@ -10,11 +10,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Awaitable, Callable
 
-import pyperclip
 import Quartz
 from pynput.keyboard import Controller as KeyboardController, Key
 
-from protocol import ActionMessage, MoveAction
+from protocol import ActionMessage, MoveAction, ScrollAction, TypeTextAction
 
 
 logger = logging.getLogger("AirMac.controller")
@@ -43,18 +42,28 @@ class PointerQueue:
         self.maxsize = maxsize
         self._items: deque[QueuedAction] = deque()
         self._condition = asyncio.Condition()
+        self.merged_count = 0
+        self.dropped_count = 0
+        self.high_water = 0
+
+    @property
+    def depth(self) -> int:
+        return len(self._items)
 
     async def put(self, item: QueuedAction) -> bool:
         async with self._condition:
-            if isinstance(item.message, MoveAction):
+            if isinstance(item.message, (MoveAction, ScrollAction)):
                 if self._merge_last(item):
+                    self.merged_count += 1
                     return True
                 if len(self._items) >= self.maxsize:
+                    self.dropped_count += 1
                     return False
             else:
                 while len(self._items) >= self.maxsize:
                     await self._condition.wait()
             self._items.append(item)
+            self.high_water = max(self.high_water, len(self._items))
             self._condition.notify_all()
             return True
 
@@ -75,16 +84,22 @@ class PointerQueue:
         if not self._items:
             return False
         previous = self._items[-1]
-        if (
-            not isinstance(previous.message, MoveAction)
-            or previous.message.action != item.message.action
-            or previous.generation != item.generation
-        ):
+        if previous.message.action != item.message.action or previous.generation != item.generation:
             return False
-        dx = max(-2000.0, min(2000.0, previous.message.dx + item.message.dx))
-        dy = max(-2000.0, min(2000.0, previous.message.dy + item.message.dy))
-        previous.message = previous.message.model_copy(update={"dx": dx, "dy": dy})
-        return True
+        if isinstance(previous.message, MoveAction) and isinstance(
+            item.message, MoveAction
+        ):
+            dx = max(-2000.0, min(2000.0, previous.message.dx + item.message.dx))
+            dy = max(-2000.0, min(2000.0, previous.message.dy + item.message.dy))
+            previous.message = previous.message.model_copy(update={"dx": dx, "dy": dy})
+            return True
+        if isinstance(previous.message, ScrollAction) and isinstance(
+            item.message, ScrollAction
+        ):
+            dy = max(-4000.0, min(4000.0, previous.message.dy + item.message.dy))
+            previous.message = previous.message.model_copy(update={"dy": dy})
+            return True
+        return False
 
 
 class MacController:
@@ -105,6 +120,8 @@ class MacController:
         self.control_task: asyncio.Task[None] | None = None
         self.current_control_task: asyncio.Task[None] | None = None
         self.background_tasks: set[asyncio.Task[None]] = set()
+        self.wake_process: asyncio.subprocess.Process | None = None
+        self.wake_task: asyncio.Task[None] | None = None
         self.generation = 0
         self.virtual_x = 0.0
         self.virtual_y = 0.0
@@ -112,6 +129,9 @@ class MacController:
         self.displays_cache: list[dict[str, float]] | None = None
         self.displays_cache_time = 0.0
         self.mouse_is_down = False
+        self.control_high_water = 0
+        self.control_dropped = 0
+        self.expired_pointer_actions = 0
 
     @property
     def keyboard(self) -> KeyboardController:
@@ -131,6 +151,7 @@ class MacController:
 
     async def stop(self) -> None:
         await self.reset()
+        await self._stop_wake_assertion()
         tasks = [task for task in (self.pointer_task, self.control_task) if task]
         for task in tasks:
             task.cancel()
@@ -148,9 +169,25 @@ class MacController:
             return await self.pointer_queue.put(item)
         try:
             self.control_queue.put_nowait(item)
+            self.control_high_water = max(
+                self.control_high_water, self.control_queue.qsize()
+            )
             return True
         except asyncio.QueueFull:
+            self.control_dropped += 1
             return False
+
+    def snapshot_metrics(self) -> dict[str, int]:
+        return {
+            "pointer_depth": self.pointer_queue.depth,
+            "pointer_high_water": self.pointer_queue.high_water,
+            "pointer_merged": self.pointer_queue.merged_count,
+            "pointer_dropped": self.pointer_queue.dropped_count,
+            "pointer_expired": self.expired_pointer_actions,
+            "control_depth": self.control_queue.qsize(),
+            "control_high_water": self.control_high_water,
+            "control_dropped": self.control_dropped,
+        }
 
     async def reset(self) -> None:
         reset_started = time.monotonic()
@@ -184,6 +221,13 @@ class MacController:
         while True:
             item = await self.pointer_queue.get()
             if item.generation != self.generation:
+                continue
+            queue_age = time.monotonic() - item.enqueued_at
+            if (
+                item.message.action in {"move", "mouse_drag", "scroll"}
+                and queue_age > 0.25
+            ):
+                self.expired_pointer_actions += 1
                 continue
             try:
                 execution_started = time.monotonic()
@@ -230,14 +274,26 @@ class MacController:
                     raise
             except Exception:
                 logger.exception("Control action failed: %s", item.message.action)
+                if isinstance(item.message, TypeTextAction):
+                    try:
+                        await item.notify(
+                            {
+                                "type": "action_result",
+                                "action": "type_text",
+                                "request_id": item.message.request_id,
+                                "status": "error",
+                            }
+                        )
+                    except Exception:
+                        logger.debug("Unable to report text projection failure")
             finally:
                 self.current_control_task = None
                 self.control_queue.task_done()
 
     def _execute_pointer(self, message: ActionMessage) -> None:
         action = message.action
-        current_pos = self._current_position()
         if action == "mouse_down":
+            current_pos = self._current_position()
             self._post_mouse(
                 Quartz.kCGEventLeftMouseDown,
                 current_pos,
@@ -245,6 +301,7 @@ class MacController:
             )
             self.mouse_is_down = True
         elif action == "mouse_up":
+            current_pos = self._current_position()
             self._post_mouse(
                 Quartz.kCGEventLeftMouseUp, current_pos, Quartz.kCGMouseButtonLeft
             )
@@ -253,7 +310,7 @@ class MacController:
             assert isinstance(message, MoveAction)
             now = time.monotonic()
             if now - self.last_move_time > 0.2:
-                self.virtual_x, self.virtual_y = current_pos
+                self.virtual_x, self.virtual_y = self._current_position()
             self.virtual_x += message.dx
             self.virtual_y += message.dy
             self.virtual_x, self.virtual_y = self._clamp_to_displays(
@@ -279,6 +336,7 @@ class MacController:
             )
             Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
         elif action == "click":
+            current_pos = self._current_position()
             button = message.button
             if button == "right":
                 down_type = Quartz.kCGEventRightMouseDown
@@ -291,6 +349,7 @@ class MacController:
             self._post_mouse(down_type, current_pos, quartz_button)
             self._post_mouse(up_type, current_pos, quartz_button)
         elif action == "triple_click":
+            current_pos = self._current_position()
             for click_state in (2, 3):
                 for event_type in (
                     Quartz.kCGEventLeftMouseDown,
@@ -319,7 +378,16 @@ class MacController:
         if action == "auto_copy":
             await self._auto_copy(item)
         elif action == "type_text":
+            assert isinstance(message, TypeTextAction)
             await self._type_text(message.text)
+            await item.notify(
+                {
+                    "type": "action_result",
+                    "action": "type_text",
+                    "request_id": message.request_id,
+                    "status": "ok",
+                }
+            )
         elif action in {"type", "keydown", "media", "cmd_tab"}:
             await loop.run_in_executor(
                 self.control_executor, self._execute_keyboard, message
@@ -348,12 +416,9 @@ class MacController:
             await self._wake_display()
 
     async def _auto_copy(self, item: QueuedAction) -> None:
-        loop = asyncio.get_running_loop()
-        old_clipboard = await loop.run_in_executor(
-            self.control_executor, pyperclip.paste
-        )
+        old_clipboard = await self._clipboard_read()
         restored_or_copied = False
-        await loop.run_in_executor(self.control_executor, pyperclip.copy, "")
+        await self._clipboard_write("")
         try:
             await self._run_process(
                 "osascript",
@@ -361,14 +426,8 @@ class MacController:
                 'tell application "System Events" to keystroke "c" using command down',
             )
             await asyncio.sleep(0.15)
-            new_clipboard = await loop.run_in_executor(
-                self.control_executor, pyperclip.paste
-            )
-            if not new_clipboard:
-                await loop.run_in_executor(
-                    self.control_executor, pyperclip.copy, old_clipboard
-                )
-            else:
+            new_clipboard = await self._clipboard_read()
+            if new_clipboard:
                 restored_or_copied = True
                 preview = (
                     new_clipboard[:20] + "..."
@@ -394,53 +453,118 @@ class MacController:
                     )
         finally:
             if not restored_or_copied and old_clipboard:
-                await loop.run_in_executor(
-                    self.control_executor, pyperclip.copy, old_clipboard
-                )
+                await self._clipboard_write(old_clipboard)
 
     async def _type_text(self, text: str) -> None:
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(self.control_executor, pyperclip.copy, text)
-        await asyncio.sleep(0.15)
-        await loop.run_in_executor(self.control_executor, self._paste)
-        await asyncio.sleep(min(0.8, 0.15 + len(text) * 0.005))
-        await loop.run_in_executor(self.control_executor, self._press_and_release, Key.enter)
+        old_clipboard = await self._clipboard_read()
+        await self._clipboard_write(text)
+        try:
+            await asyncio.sleep(0.15)
+            await loop.run_in_executor(self.control_executor, self._paste)
+            await asyncio.sleep(min(0.8, 0.15 + len(text) * 0.005))
+            await loop.run_in_executor(
+                self.control_executor, self._press_and_release, Key.enter
+            )
+        finally:
+            current_clipboard = await self._clipboard_read()
+            if current_clipboard == text:
+                await self._clipboard_write(old_clipboard)
 
-    async def _wake_display(self) -> None:
+    async def _clipboard_read(self) -> str:
         process = await asyncio.create_subprocess_exec(
-            "caffeinate",
-            "-u",
-            "-t",
-            "3",
+            "pbpaste",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        try:
+            stdout, _ = await asyncio.wait_for(process.communicate(), timeout=2.0)
+        except asyncio.TimeoutError as exc:
+            await self._terminate_process(process)
+            raise RuntimeError("pbpaste timed out") from exc
+        except asyncio.CancelledError:
+            await self._terminate_process(process)
+            raise
+        if process.returncode != 0:
+            raise RuntimeError(f"pbpaste failed with status {process.returncode}")
+        return stdout.decode("utf-8", errors="replace")
+
+    async def _clipboard_write(self, text: str) -> None:
+        process = await asyncio.create_subprocess_exec(
+            "pbcopy",
+            stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
         )
-        await asyncio.sleep(0.5)
+        try:
+            await asyncio.wait_for(
+                process.communicate(text.encode("utf-8")), timeout=2.0
+            )
+        except asyncio.TimeoutError as exc:
+            await self._terminate_process(process)
+            raise RuntimeError("pbcopy timed out") from exc
+        except asyncio.CancelledError:
+            await self._terminate_process(process)
+            raise
+        if process.returncode != 0:
+            raise RuntimeError(f"pbcopy failed with status {process.returncode}")
+
+    async def _wake_display(self) -> None:
+        await self._stop_wake_assertion()
+        process = await asyncio.create_subprocess_exec(
+            "caffeinate",
+            "-d",
+            "-u",
+            "-t",
+            "30",
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        self.wake_process = process
+        self.wake_task = asyncio.create_task(
+            self._wait_for_wake_process(process), name="airmac-wake-assertion"
+        )
+        logger.info("Wake assertion started duration_seconds=30")
+        await asyncio.sleep(0.35)
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(
             self.control_executor, self._press_and_release, Key.shift
         )
-        await asyncio.sleep(1.5)
-        await loop.run_in_executor(
-            self.control_executor, self._press_and_release, Key.shift
-        )
-        await process.wait()
 
-    async def _run_process(self, *arguments: str) -> None:
+    async def _stop_wake_assertion(self) -> None:
+        task = self.wake_task
+        if task and not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        self.wake_task = None
+        self.wake_process = None
+
+    async def _wait_for_wake_process(
+        self, process: asyncio.subprocess.Process
+    ) -> None:
+        try:
+            await self._wait_for_background_process(process)
+        finally:
+            if self.wake_process is process:
+                self.wake_process = None
+                self.wake_task = None
+                logger.info("Wake assertion ended")
+
+    async def _run_process(self, *arguments: str, timeout: float = 5.0) -> None:
         process = await asyncio.create_subprocess_exec(
             *arguments,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
         )
         try:
-            await process.wait()
+            await asyncio.wait_for(process.wait(), timeout=timeout)
+        except asyncio.TimeoutError as exc:
+            await self._terminate_process(process)
+            raise RuntimeError(
+                f"Process timed out after {timeout:.1f}s: {arguments[0]}"
+            ) from exc
         except asyncio.CancelledError:
-            if process.returncode is None:
-                try:
-                    process.terminate()
-                except ProcessLookupError:
-                    pass
-                await process.wait()
+            await self._terminate_process(process)
             raise
 
     async def _wait_for_background_process(
@@ -449,13 +573,24 @@ class MacController:
         try:
             await process.wait()
         except asyncio.CancelledError:
-            if process.returncode is None:
-                try:
-                    process.terminate()
-                except ProcessLookupError:
-                    pass
-                await process.wait()
+            await self._terminate_process(process)
             raise
+
+    async def _terminate_process(self, process: asyncio.subprocess.Process) -> None:
+        if process.returncode is not None:
+            return
+        try:
+            process.terminate()
+        except ProcessLookupError:
+            return
+        try:
+            await asyncio.wait_for(process.wait(), timeout=1.0)
+        except asyncio.TimeoutError:
+            try:
+                process.kill()
+            except ProcessLookupError:
+                return
+            await process.wait()
 
     def _execute_keyboard(self, message: ActionMessage) -> None:
         if message.action == "type":

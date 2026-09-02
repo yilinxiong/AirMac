@@ -82,6 +82,14 @@ class MediaAction(ActionBase):
 
 class TypeTextAction(ActionBase):
     action: Literal["type_text"]
+    request_id: Annotated[
+        str,
+        StringConstraints(
+            min_length=8,
+            max_length=64,
+            pattern=r"^[A-Za-z0-9_-]+$",
+        ),
+    ]
     text: Annotated[str, StringConstraints(min_length=1, max_length=32_768)]
 
     @field_validator("text")

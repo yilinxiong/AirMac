@@ -127,6 +127,9 @@ def test_frontend_is_not_cached(app_client: tuple[Any, ...]) -> None:
     response = client.get("/")
     assert response.status_code == 200
     assert response.headers["cache-control"] == "no-store"
+    assert '<dialog class="settings-dialog"' not in response.text
+    assert 'id="settings-overlay" hidden' in response.text
+    assert 'id="settings-close"' in response.text
 
 
 def test_pwa_assets_are_served_with_safe_types(app_client: tuple[Any, ...]) -> None:

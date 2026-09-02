@@ -7,6 +7,8 @@ const {
     ProjectionState,
     GestureTouches,
     FourFingerAppGesture,
+    SettingsStore,
+    LatencyTracker,
 } = require('../frontend_state.js');
 
 test('reconnect backoff grows, jitters, and resets', () => {
@@ -60,4 +62,43 @@ test('four-finger app gesture rejects other counts and directions', () => {
     assert.equal(gesture.detect(3, 0, -80), false);
     assert.equal(gesture.detect(4, 80, -50), false);
     assert.equal(gesture.detect(4, 0, 80), false);
+});
+
+test('settings are persisted, clamped, and invalid values fall back safely', () => {
+    const values = new Map();
+    const storage = {
+        getItem: (key) => values.get(key) ?? null,
+        setItem: (key, value) => values.set(key, value),
+        removeItem: (key) => values.delete(key),
+    };
+    const store = new SettingsStore(storage);
+    const saved = store.save({
+        pointerSensitivity: 99,
+        scrollSpeed: '0.1',
+        naturalScroll: false,
+        threeFingerUp: 'unknown',
+        fourFingerUp: 'disabled',
+    });
+
+    assert.equal(saved.pointerSensitivity, 3);
+    assert.equal(saved.scrollSpeed, 0.5);
+    assert.equal(saved.naturalScroll, false);
+    assert.equal(saved.threeFingerUp, 'mission_control');
+    assert.equal(saved.fourFingerUp, 'disabled');
+    assert.deepEqual(store.load(), saved);
+
+    values.set('airmac_settings_v1', '{bad json');
+    assert.equal(store.load().pointerSensitivity, 1.6);
+    assert.equal(store.reset().touchFeedback, true);
+});
+
+test('latency tracker smooths heartbeat round trips and resets', () => {
+    const latency = new LatencyTracker(0.25);
+    assert.equal(latency.acknowledge(100), null);
+    latency.sent(100);
+    assert.equal(latency.acknowledge(140), 40);
+    latency.sent(200);
+    assert.equal(latency.acknowledge(280), 50);
+    latency.reset();
+    assert.equal(latency.value, null);
 });

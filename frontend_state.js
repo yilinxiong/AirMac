@@ -111,5 +111,123 @@
         }
     }
 
-    return { ReconnectBackoff, ProjectionState, GestureTouches, FourFingerAppGesture };
+    const DEFAULT_SETTINGS = Object.freeze({
+        pointerSensitivity: 1.6,
+        scrollSpeed: 1,
+        naturalScroll: true,
+        reduceMotion: false,
+        lowPower: false,
+        touchFeedback: true,
+        threeFingerUp: 'mission_control',
+        fourFingerUp: 'app_launcher',
+    });
+
+    function clampNumber(value, minimum, maximum, fallback) {
+        const number = Number(value);
+        if (!Number.isFinite(number)) return fallback;
+        return Math.min(maximum, Math.max(minimum, number));
+    }
+
+    function normalizeSettings(value = {}) {
+        const candidate = value && typeof value === 'object' ? value : {};
+        const threeFingerUp = ['mission_control', 'app_launcher'].includes(candidate.threeFingerUp)
+            ? candidate.threeFingerUp
+            : DEFAULT_SETTINGS.threeFingerUp;
+        const fourFingerUp = ['app_launcher', 'mission_control', 'disabled'].includes(candidate.fourFingerUp)
+            ? candidate.fourFingerUp
+            : DEFAULT_SETTINGS.fourFingerUp;
+        return {
+            pointerSensitivity: clampNumber(
+                candidate.pointerSensitivity,
+                0.6,
+                3,
+                DEFAULT_SETTINGS.pointerSensitivity,
+            ),
+            scrollSpeed: clampNumber(
+                candidate.scrollSpeed,
+                0.5,
+                3,
+                DEFAULT_SETTINGS.scrollSpeed,
+            ),
+            naturalScroll: typeof candidate.naturalScroll === 'boolean'
+                ? candidate.naturalScroll
+                : DEFAULT_SETTINGS.naturalScroll,
+            reduceMotion: typeof candidate.reduceMotion === 'boolean'
+                ? candidate.reduceMotion
+                : DEFAULT_SETTINGS.reduceMotion,
+            lowPower: typeof candidate.lowPower === 'boolean'
+                ? candidate.lowPower
+                : DEFAULT_SETTINGS.lowPower,
+            touchFeedback: typeof candidate.touchFeedback === 'boolean'
+                ? candidate.touchFeedback
+                : DEFAULT_SETTINGS.touchFeedback,
+            threeFingerUp,
+            fourFingerUp,
+        };
+    }
+
+    class SettingsStore {
+        constructor(storage, key = 'airmac_settings_v1') {
+            this.storage = storage;
+            this.key = key;
+        }
+
+        load() {
+            try {
+                const stored = this.storage.getItem(this.key);
+                return normalizeSettings(stored ? JSON.parse(stored) : {});
+            } catch (_) {
+                return normalizeSettings();
+            }
+        }
+
+        save(value) {
+            const settings = normalizeSettings(value);
+            this.storage.setItem(this.key, JSON.stringify(settings));
+            return settings;
+        }
+
+        reset() {
+            this.storage.removeItem(this.key);
+            return normalizeSettings();
+        }
+    }
+
+    class LatencyTracker {
+        constructor(alpha = 0.3) {
+            this.alpha = clampNumber(alpha, 0.05, 1, 0.3);
+            this.sentAt = null;
+            this.value = null;
+        }
+
+        sent(now = Date.now()) {
+            this.sentAt = now;
+        }
+
+        acknowledge(now = Date.now()) {
+            if (this.sentAt === null) return this.value;
+            const sample = Math.max(0, now - this.sentAt);
+            this.sentAt = null;
+            this.value = this.value === null
+                ? sample
+                : Math.round(this.value * (1 - this.alpha) + sample * this.alpha);
+            return this.value;
+        }
+
+        reset() {
+            this.sentAt = null;
+            this.value = null;
+        }
+    }
+
+    return {
+        ReconnectBackoff,
+        ProjectionState,
+        GestureTouches,
+        FourFingerAppGesture,
+        DEFAULT_SETTINGS,
+        normalizeSettings,
+        SettingsStore,
+        LatencyTracker,
+    };
 }));

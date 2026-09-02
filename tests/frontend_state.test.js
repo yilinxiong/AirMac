@@ -6,6 +6,7 @@ const {
     ReconnectBackoff,
     ProjectionState,
     GestureTouches,
+    FourFingerAppGesture,
 } = require('../frontend_state.js');
 
 test('reconnect backoff grows, jitters, and resets', () => {
@@ -43,4 +44,20 @@ test('two-finger gesture is classified only after the final lift', () => {
     assert.equal(touches.finish(1), null);
     assert.equal(touches.finish(0), 2);
     assert.equal(touches.max, 0);
+});
+
+test('four-finger upward swipe opens the app launcher once', () => {
+    const gesture = new FourFingerAppGesture(40);
+    assert.equal(gesture.detect(4, 5, -39), false);
+    assert.equal(gesture.detect(4, 8, -55), true);
+    assert.equal(gesture.detect(4, 3, -80), false);
+    gesture.reset();
+    assert.equal(gesture.detect(4, 0, -41), true);
+});
+
+test('four-finger app gesture rejects other counts and directions', () => {
+    const gesture = new FourFingerAppGesture(40);
+    assert.equal(gesture.detect(3, 0, -80), false);
+    assert.equal(gesture.detect(4, 80, -50), false);
+    assert.equal(gesture.detect(4, 0, 80), false);
 });

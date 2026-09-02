@@ -44,6 +44,7 @@ def test_auth_message_is_strict() -> None:
         {"action": "media", "command": "playpause"},
         {"action": "type_text", "request_id": "request_123", "text": "hello"},
         {"action": "mouse_up"},
+        {"action": "app_launcher"},
         {"action": "heartbeat"},
     ],
 )

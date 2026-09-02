@@ -18,6 +18,7 @@ from protocol import ActionMessage, MoveAction, ScrollAction, TypeTextAction
 
 logger = logging.getLogger("AirMac.controller")
 NotifyCallback = Callable[[dict[str, object]], Awaitable[None]]
+APPS_APPLICATION_PATH = Path("/System/Applications/Apps.app")
 POINTER_ACTIONS = {
     "mouse_down",
     "mouse_up",
@@ -398,6 +399,11 @@ class MacController:
                 "-e",
                 'tell application "System Events" to key code 126 using control down',
             )
+        elif action == "app_launcher":
+            if APPS_APPLICATION_PATH.exists():
+                await self._run_process("open", str(APPS_APPLICATION_PATH))
+            else:
+                await self._run_process("open", "-a", "Launchpad")
         elif action == "space_left":
             await self._run_process(
                 "osascript",

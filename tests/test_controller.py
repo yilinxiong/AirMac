@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-import json
 import asyncio
+import json
+from pathlib import Path
 
 import pytest
 
+import mac_controller
 from mac_controller import MacController, PointerQueue, QueuedAction
 from protocol import MoveAction, ScrollAction, parse_action_message
 
@@ -75,6 +77,26 @@ async def test_pointer_queue_coalesces_scroll_bursts() -> None:
     assert isinstance(merged.message, ScrollAction)
     assert merged.message.dy == 6
     assert queue.merged_count == 2
+
+
+@pytest.mark.asyncio
+async def test_app_launcher_prefers_modern_macos_apps(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    controller = MacController()
+    apps_path = tmp_path / "Apps.app"
+    apps_path.mkdir()
+    calls: list[tuple[str, ...]] = []
+
+    async def fake_run_process(*arguments: str, timeout: float = 5.0) -> None:
+        calls.append(arguments)
+
+    monkeypatch.setattr(mac_controller, "APPS_APPLICATION_PATH", apps_path)
+    monkeypatch.setattr(controller, "_run_process", fake_run_process)
+    message = parse_action_message(json.dumps({"action": "app_launcher"}))
+    await controller._execute_control(QueuedAction(message, 1, noop_notify))
+
+    assert calls == [("open", str(apps_path))]
 
 
 @pytest.mark.asyncio

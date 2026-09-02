@@ -17,6 +17,7 @@ AirMac turns an iPhone into a low-latency trackpad and keyboard for a Mac on the
 - One-finger cursor movement and tap-to-click
 - Two-finger right-click and scrolling
 - Three-finger Mission Control and desktop switching
+- Four-finger upward swipe to open Launchpad or the macOS Apps interface
 - Long-press dragging with disconnect-safe mouse release
 - Keyboard input and long-text projection
 - Confirmed long-text delivery with a dedicated clear button
@@ -124,6 +125,7 @@ AirMac 可以把同一可信局域网中的 iPhone 变成 Mac 的低延迟触控
 - 单指移动、轻点左键
 - 双指右键和滚动
 - 三指调度中心及桌面切换
+- 四指上滑打开 Launchpad 或新版 macOS Apps 应用界面
 - 长按拖拽，断线时自动释放鼠标
 - 手机键盘输入和长文本投射
 - 长文本执行确认以及独立的一键清空按钮

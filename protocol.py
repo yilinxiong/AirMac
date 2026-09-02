@@ -37,6 +37,7 @@ class NoPayloadAction(ActionBase):
         "mouse_up",
         "triple_click",
         "mission_control",
+        "app_launcher",
         "space_left",
         "space_right",
         "cmd_tab",

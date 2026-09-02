@@ -192,14 +192,21 @@
             align-items: center;
             flex-shrink: 0;
         }
+
+        .projection-input-wrap {
+            position: relative;
+            flex: 1;
+            min-width: 0;
+        }
         
         .projection-bar textarea {
-            flex: 1;
+            display: block;
+            width: 100%;
             box-sizing: border-box;
             height: 52px;
             min-height: 52px;
             max-height: 104px;
-            padding: 15px 18px;
+            padding: 15px 46px 15px 18px;
             border-radius: 24px;
             border: 1px solid var(--glass-border);
             background: rgba(0,0,0,0.2);
@@ -257,16 +264,31 @@
         }
 
         .clear-btn {
-            width: 38px;
-            height: 38px;
-            flex-shrink: 0;
+            position: absolute;
+            top: 12px;
+            right: 10px;
+            width: 28px;
+            height: 28px;
             border-radius: 50%;
-            border: 1px solid var(--glass-border);
-            background: rgba(0, 0, 0, 0.2);
-            color: rgba(255, 255, 255, 0.72);
-            font-size: 24px;
+            border: 0;
+            padding: 0;
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.68);
+            font-size: 19px;
             font-weight: 300;
             line-height: 1;
+            cursor: pointer;
+            touch-action: manipulation;
+            transition: opacity 0.15s, background 0.15s;
+        }
+
+        .clear-btn:active {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .projection-input-wrap textarea:placeholder-shown + .clear-btn {
+            opacity: 0;
+            pointer-events: none;
         }
 
         .send-btn svg {
@@ -507,8 +529,10 @@
 
         <!-- Projection Bar -->
         <div class="projection-bar">
-            <textarea id="projection-input" rows="1" maxlength="32768" placeholder="输入长文本投射到Mac..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
-            <button type="button" class="clear-btn" id="projection-clear" aria-label="清空长文本">×</button>
+            <div class="projection-input-wrap">
+                <textarea id="projection-input" rows="1" maxlength="32768" placeholder="输入长文本投射到Mac..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+                <button type="button" class="clear-btn" id="projection-clear" aria-label="清空长文本">×</button>
+            </div>
             <button type="button" class="send-btn" id="projection-btn" aria-label="发送长文本">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
                     <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -946,6 +970,15 @@
         let lastTapTime = 0;
         let isDoubleTap = false;
         const gestureTouches = new AirMacState.GestureTouches();
+        const fourFingerAppGesture = new AirMacState.FourFingerAppGesture();
+
+        function touchCenter(touches) {
+            const points = Array.from(touches);
+            return {
+                x: points.reduce((sum, touch) => sum + touch.clientX, 0) / points.length,
+                y: points.reduce((sum, touch) => sum + touch.clientY, 0) / points.length
+            };
+        }
 
         function triggerAutoCopy() {
             setTimeout(() => {
@@ -964,6 +997,7 @@
             if (isNewGesture) {
                 isMoved = false;
                 isThreeFingerSwiped = false;
+                fourFingerAppGesture.reset();
                 lastTouchTime = Date.now();
             }
             
@@ -1008,6 +1042,13 @@
                     x: (e.touches[0].clientX + e.touches[1].clientX + e.touches[2].clientX) / 3, 
                     y: (e.touches[0].clientY + e.touches[1].clientY + e.touches[2].clientY) / 3 
                 };
+            } else if (e.touches.length === 4) {
+                clearTimeout(dragTimer);
+                if (isDragging) {
+                    sendCmd({ action: 'mouse_up' });
+                    isDragging = false;
+                }
+                lastTouch = touchCenter(e.touches);
             }
         }, { passive: false });
 
@@ -1018,6 +1059,13 @@
             
             isMoved = true;
             clearTimeout(dragTimer);
+
+            // A four-finger gesture remains four-finger-only while fingers are
+            // lifted one by one, so it cannot turn into a three-finger command.
+            if (gestureTouches.max >= 4 && e.touches.length < 4) {
+                lastTouch = touchCenter(e.touches);
+                return;
+            }
             
             if (e.touches.length === 1) {
                 const currentTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
@@ -1069,6 +1117,14 @@
                         }
                     }
                 }
+            } else if (e.touches.length === 4) {
+                const currentTouch = touchCenter(e.touches);
+                const dx = currentTouch.x - lastTouch.x;
+                const dy = currentTouch.y - lastTouch.y;
+                if (fourFingerAppGesture.detect(e.touches.length, dx, dy)) {
+                    sendCmd({ action: 'app_launcher' });
+                    if (navigator.vibrate) navigator.vibrate([15, 25, 15]);
+                }
             }
         }, { passive: false });
 
@@ -1116,6 +1172,7 @@
                 }
                 lastTouch = null;
                 isThreeFingerSwiped = false;
+                fourFingerAppGesture.reset();
             }
         }, { passive: false });
 
@@ -1128,6 +1185,7 @@
             }
             lastTouch = null;
             gestureTouches.reset();
+            fourFingerAppGesture.reset();
         }, { passive: false });
 
         // --- Button Controls ---

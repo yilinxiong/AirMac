@@ -93,5 +93,23 @@
         }
     }
 
-    return { ReconnectBackoff, ProjectionState, GestureTouches };
+    class FourFingerAppGesture {
+        constructor(threshold = 40) {
+            this.threshold = threshold;
+            this.triggered = false;
+        }
+
+        detect(touchCount, dx, dy) {
+            if (this.triggered || touchCount !== 4) return false;
+            if (dy >= -this.threshold || Math.abs(dy) <= Math.abs(dx)) return false;
+            this.triggered = true;
+            return true;
+        }
+
+        reset() {
+            this.triggered = false;
+        }
+    }
+
+    return { ReconnectBackoff, ProjectionState, GestureTouches, FourFingerAppGesture };
 }));

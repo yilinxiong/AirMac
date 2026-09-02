@@ -665,11 +665,22 @@
         }
 
         .nav-button {
+            min-width: 0;
+            min-height: 0;
+            height: 100%;
+            padding: 0 4px;
             border: 0;
             border-radius: 17px;
             background: transparent;
             color: rgba(255,255,255,.38);
             font: 600 12px/1 system-ui;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            appearance: none;
+            -webkit-appearance: none;
             touch-action: manipulation;
             outline: none;
             -webkit-tap-highlight-color: transparent;
@@ -682,7 +693,19 @@
             box-shadow: inset 0 1px rgba(255,255,255,.06), 0 5px 16px rgba(0,0,0,.2);
         }
         .nav-button:focus-visible { outline: 2px solid rgba(101,183,255,.75); outline-offset: -2px; }
-        .nav-icon { display: block; margin-bottom: 4px; font-size: 17px; font-weight: 400; }
+        .nav-icon {
+            width: 22px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 18px;
+            margin: 0;
+            font-size: 17px;
+            font-weight: 400;
+            line-height: 18px;
+        }
+        .nav-label { display: block; height: 12px; line-height: 12px; }
 
         .settings-overlay {
             position: fixed;
@@ -743,7 +766,8 @@
             .app-header { height: 34px; }
             .brand span { display: none; }
             .bottom-nav { flex-basis: 52px; }
-            .nav-icon { display: inline; margin: 0 5px 0 0; }
+            .nav-button { flex-direction: row; gap: 5px; }
+            .nav-icon { flex-basis: 18px; }
         }
     </style>
 </head>
@@ -821,9 +845,9 @@
         </main>
 
         <nav class="bottom-nav" aria-label="主要功能">
-            <button type="button" class="nav-button active" data-view="pad"><span class="nav-icon">⌁</span>触控板</button>
-            <button type="button" class="nav-button" data-view="deck"><span class="nav-icon">◫</span>快捷台</button>
-            <button type="button" class="nav-button" data-view="text"><span class="nav-icon">⌨︎</span>文本</button>
+            <button type="button" class="nav-button active" data-view="pad"><span class="nav-icon">⌁</span><span class="nav-label">触控板</span></button>
+            <button type="button" class="nav-button" data-view="deck"><span class="nav-icon">◫</span><span class="nav-label">快捷台</span></button>
+            <button type="button" class="nav-button" data-view="text"><span class="nav-icon">⌨︎</span><span class="nav-label">文本</span></button>
         </nav>
 
         <input type="text" id="hidden-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />

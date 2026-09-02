@@ -3,6 +3,7 @@ __pycache__/
 remote.log
 whitelist.json
 hud
+airmac-menubar
 .pytest_cache/
 authorized_devices.json
 *.lock

@@ -7,7 +7,13 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="AirMac">
-    <link rel="apple-touch-icon" href="/icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#1c1c1e">
+    <meta name="color-scheme" content="dark">
+    <meta name="format-detection" content="telephone=no">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
     <title>AirMac</title>
     <style>
         :root {
@@ -370,10 +376,59 @@
             color: #ff6961;
             font-size: 13px;
         }
+
+        .install-coach {
+            position: fixed;
+            top: calc(env(safe-area-inset-top) + 12px);
+            left: 16px;
+            right: 16px;
+            z-index: 90;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            max-width: 440px;
+            margin: 0 auto;
+            padding: 12px 14px;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 18px;
+            background: rgba(38, 38, 42, 0.94);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.42);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-sizing: border-box;
+        }
+
+        .install-coach[hidden] {
+            display: none;
+        }
+
+        .install-coach span {
+            flex: 1;
+            font-size: 13px;
+            line-height: 1.4;
+            color: rgba(255, 255, 255, 0.82);
+        }
+
+        .install-coach button {
+            flex-shrink: 0;
+            border: 0;
+            border-radius: 12px;
+            padding: 9px 12px;
+            color: white;
+            background: #0a84ff;
+            font: inherit;
+            font-size: 13px;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
     <canvas id="matrixCanvas"></canvas>
+
+    <div class="install-coach" id="install-coach" hidden role="status">
+        <span id="install-coach-text">将 AirMac 添加到主屏幕，使用时更像原生 App。</span>
+        <button type="button" id="install-coach-button">知道了</button>
+    </div>
 
     <div class="pairing-overlay hidden" id="pairing-overlay">
         <div class="pairing-card">
@@ -467,6 +522,55 @@
 
     <script src="/frontend_state.js"></script>
     <script>
+        // Progressive Web App support. Service workers require a secure context;
+        // plain LAN HTTP continues to work without one.
+        if ('serviceWorker' in navigator && window.isSecureContext) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+            });
+        }
+
+        const installCoach = document.getElementById('install-coach');
+        const installCoachText = document.getElementById('install-coach-text');
+        const installCoachButton = document.getElementById('install-coach-button');
+        const installHintKey = 'airmac_install_hint_dismissed_v1';
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+            || window.navigator.standalone === true;
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+            || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        let deferredInstallPrompt = null;
+
+        function dismissInstallCoach() {
+            installCoach.hidden = true;
+            localStorage.setItem(installHintKey, '1');
+        }
+
+        if (!isStandalone && localStorage.getItem(installHintKey) !== '1') {
+            if (isIOS) {
+                installCoachText.textContent = '点 Safari 的分享按钮，再选“添加到主屏幕”。';
+                window.setTimeout(() => { installCoach.hidden = false; }, 1800);
+            }
+            window.addEventListener('beforeinstallprompt', (event) => {
+                event.preventDefault();
+                deferredInstallPrompt = event;
+                installCoachText.textContent = '安装 AirMac，获得全屏触控板体验。';
+                installCoachButton.textContent = '安装';
+                installCoach.hidden = false;
+            });
+        }
+
+        installCoachButton.addEventListener('click', async () => {
+            if (!deferredInstallPrompt) {
+                dismissInstallCoach();
+                return;
+            }
+            deferredInstallPrompt.prompt();
+            await deferredInstallPrompt.userChoice;
+            deferredInstallPrompt = null;
+            dismissInstallCoach();
+        });
+        window.addEventListener('appinstalled', dismissInstallCoach);
+
         // Matrix Rain Setup
         const canvas = document.getElementById('matrixCanvas');
         const ctx = canvas.getContext('2d');

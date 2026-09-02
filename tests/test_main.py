@@ -129,6 +129,24 @@ def test_frontend_is_not_cached(app_client: tuple[Any, ...]) -> None:
     assert response.headers["cache-control"] == "no-store"
 
 
+def test_pwa_assets_are_served_with_safe_types(app_client: tuple[Any, ...]) -> None:
+    client, _, _ = app_client
+    manifest = client.get("/manifest.webmanifest")
+    assert manifest.status_code == 200
+    assert manifest.headers["content-type"].startswith("application/manifest+json")
+    assert manifest.json()["display"] == "standalone"
+
+    worker = client.get("/service-worker.js")
+    assert worker.status_code == 200
+    assert worker.headers["service-worker-allowed"] == "/"
+    assert worker.headers["cache-control"] == "no-cache"
+
+    icon = client.get("/icons/icon-192.png")
+    assert icon.status_code == 200
+    assert icon.headers["content-type"].startswith("image/png")
+    assert client.get("/icons/../auth.py").status_code == 404
+
+
 def test_health_endpoint_is_sanitized(app_client: tuple[Any, ...]) -> None:
     client, _, _ = app_client
     response = client.get("/api/health")

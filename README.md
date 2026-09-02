@@ -23,6 +23,8 @@ AirMac turns an iPhone into a low-latency trackpad and keyboard for a Mac on the
 - Automatic copy feedback with a native macOS HUD
 - Media, fullscreen, display sleep, and wake controls
 - Six-digit, short-lived pairing codes and revocable device tokens
+- Native macOS menu-bar status and paired-device management
+- Installable Home Screen web app with manifest and adaptive icons
 
 ### Install
 
@@ -41,7 +43,8 @@ For a foreground run:
 uvicorn main:app --host 0.0.0.0 --port 8000 --ws-max-size 65536 --log-config logging_config.json
 ```
 
-For a login service that also builds the Swift HUD when the local toolchain supports it:
+For login services that build and start both the native menu-bar manager and,
+when the local Swift toolchain supports it, the copy HUD:
 
 ```bash
 ./install_service.sh
@@ -49,7 +52,17 @@ For a login service that also builds the Swift HUD when the local toolchain supp
 
 Open the URL printed by AirMac in iPhone Safari. On first use, name the phone, request a pairing code, and enter the six digits shown in the Mac dialog. The resulting device token is stored by Safari and is never placed in the WebSocket URL or access log.
 
-Add the page to the iPhone Home Screen for the full-screen experience.
+Add the page to the iPhone Home Screen for the full-screen experience. AirMac now
+includes a complete web app manifest, iPhone and maskable icons, and an in-app
+installation hint. A cached offline explanation page is available when the browser
+allows Service Workers. Browsers normally require HTTPS for Service Workers, so
+plain LAN HTTP may skip that optional cache without affecting remote control.
+
+The AirMac cursor icon in the macOS menu bar shows whether the background service
+is reachable. Its menu can open or copy the phone URL, show and revoke paired
+devices, reveal logs, and restart the service. Choosing **Quit Menu Bar Icon** hides
+only the icon; the remote-control server continues running and the icon returns at
+the next login or service installation.
 
 Locking the iPhone or sending the page to the background intentionally pauses the
 WebSocket. Returning to AirMac reconnects automatically. The server expires an
@@ -96,7 +109,8 @@ If the installed Swift compiler and macOS SDK do not match, installation continu
 pip install -r requirements-dev.txt
 pytest
 node --test tests/frontend_state.test.js
-bash -n install_service.sh uninstall_service.sh
+bash -n install_service.sh uninstall_service.sh tools/generate_pwa_icons.sh
+clang -fobjc-arc -framework Cocoa menubar.m -o /tmp/airmac-menubar-check
 ```
 
 ## 中文说明
@@ -116,6 +130,8 @@ AirMac 可以把同一可信局域网中的 iPhone 变成 Mac 的低延迟触控
 - 自动复制与 macOS 原生 HUD 提示
 - 媒体、全屏、息屏与唤醒控制
 - 6 位短时验证码配对、可撤销设备令牌
+- 原生 macOS 菜单栏状态与配对设备管理
+- 带 manifest 和自适应图标的主屏幕 Web App
 
 ### 安装与运行
 
@@ -134,7 +150,8 @@ pip install -r requirements.txt
 uvicorn main:app --host 0.0.0.0 --port 8000 --ws-max-size 65536 --log-config logging_config.json
 ```
 
-安装为登录后自动运行的 LaunchAgent，并在本机工具链可用时自动编译 Swift HUD：
+安装为登录后自动运行的 LaunchAgent；安装脚本会构建并启动原生菜单栏管理器，
+并在本机 Swift 工具链可用时自动编译复制 HUD：
 
 ```bash
 ./install_service.sh
@@ -142,7 +159,14 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --ws-max-size 65536 --log-config log
 
 在 iPhone Safari 中打开终端打印的网址。首次使用时输入设备名称，请求配对，然后把 Mac 弹窗显示的 6 位验证码填到手机。配对令牌保存在 Safari 中，不会出现在 WebSocket URL 或访问日志里。
 
-推荐通过 Safari 分享菜单选择“添加到主屏幕”。
+推荐通过 Safari 分享菜单选择“添加到主屏幕”。AirMac 已包含完整 manifest、
+iPhone/自适应图标和应用内安装提示。浏览器允许 Service Worker 时，还会缓存一个
+断网说明页面；局域网 HTTP 通常不满足 Service Worker 的 HTTPS 要求，因此可能跳过
+这项可选缓存，但不会影响远程控制功能。
+
+Mac 菜单栏中的 AirMac 光标图标会显示后台服务是否可用。菜单内可以打开或复制
+手机访问地址、查看和撤销配对设备、打开日志以及重启服务。“退出菜单栏图标”只会
+隐藏图标，不会停止远程控制服务；下次登录或重新安装服务时图标会再次出现。
 
 iPhone 锁屏或页面进入后台时会主动暂停 WebSocket；回到 AirMac 后自动恢复。
 服务端会在前台连接连续 16 秒没有心跳时清理僵尸会话，避免旧连接长期占用控制器。

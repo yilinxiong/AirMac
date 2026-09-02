@@ -3,15 +3,21 @@
 set -euo pipefail
 
 SERVICE_NAME="com.airmac.remote"
+MENUBAR_SERVICE_NAME="com.airmac.remote.menubar"
 LEGACY_SERVICE_NAME="com.yourname.iphonemacremote"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLIST_DIR="${HOME}/Library/LaunchAgents"
 PLIST_PATH="${PLIST_DIR}/${SERVICE_NAME}.plist"
+MENUBAR_PLIST_PATH="${PLIST_DIR}/${MENUBAR_SERVICE_NAME}.plist"
 LOG_DIR="${HOME}/Library/Logs/AirMac"
 LOG_FILE="${LOG_DIR}/remote.log"
 LAUNCHER_LOG="${LOG_DIR}/launcher.log"
+MENUBAR_LOG="${LOG_DIR}/menubar.log"
 DATA_DIR="${HOME}/Library/Application Support/AirMac"
 RUNTIME_LOG_CONFIG="${DATA_DIR}/logging_config.json"
+DEVICE_STORE="${DATA_DIR}/authorized_devices.json"
+MENUBAR_SOURCE="${PROJECT_DIR}/menubar.m"
+MENUBAR_BINARY="${PROJECT_DIR}/airmac-menubar"
 
 if [ -x "${PROJECT_DIR}/venv/bin/python" ]; then
     PYTHON_PATH="${PROJECT_DIR}/venv/bin/python"
@@ -44,12 +50,32 @@ if [ ! -x "${PROJECT_DIR}/hud" ] || [ "${PROJECT_DIR}/hud.swift" -nt "${PROJECT_
     fi
 fi
 
+if [ ! -x "${MENUBAR_BINARY}" ] || [ "${MENUBAR_SOURCE}" -nt "${MENUBAR_BINARY}" ]; then
+    if command -v clang >/dev/null 2>&1; then
+        echo "正在构建 AirMac 菜单栏应用..."
+        if clang -fobjc-arc -framework Cocoa "${MENUBAR_SOURCE}" -o "${MENUBAR_BINARY}.new"; then
+            mv "${MENUBAR_BINARY}.new" "${MENUBAR_BINARY}"
+        else
+            rm -f "${MENUBAR_BINARY}.new"
+            echo "⚠️ 菜单栏应用构建失败，后台控制服务仍会正常安装。"
+        fi
+    else
+        echo "⚠️ 未找到 clang，无法构建菜单栏应用。"
+    fi
+fi
+
+if [ -x "${MENUBAR_BINARY}" ]; then
+    MENUBAR_AVAILABLE=true
+else
+    MENUBAR_AVAILABLE=false
+fi
+
 mkdir -p "${PLIST_DIR}" "${LOG_DIR}" "${DATA_DIR}"
 chmod 700 "${LOG_DIR}" "${DATA_DIR}"
-touch "${LOG_FILE}" "${LAUNCHER_LOG}"
-chmod 600 "${LOG_FILE}" "${LAUNCHER_LOG}"
+touch "${LOG_FILE}" "${LAUNCHER_LOG}" "${MENUBAR_LOG}"
+chmod 600 "${LOG_FILE}" "${LAUNCHER_LOG}" "${MENUBAR_LOG}"
 
-"${PYTHON_PATH}" - "${PLIST_PATH}" "${SERVICE_NAME}" "${PROJECT_DIR}" "${PYTHON_PATH}" "${LOG_FILE}" "${LAUNCHER_LOG}" "${RUNTIME_LOG_CONFIG}" <<'PY'
+"${PYTHON_PATH}" - "${PLIST_PATH}" "${SERVICE_NAME}" "${PROJECT_DIR}" "${PYTHON_PATH}" "${LOG_FILE}" "${LAUNCHER_LOG}" "${RUNTIME_LOG_CONFIG}" "${MENUBAR_PLIST_PATH}" "${MENUBAR_SERVICE_NAME}" "${MENUBAR_BINARY}" "${DEVICE_STORE}" "${MENUBAR_LOG}" "${MENUBAR_AVAILABLE}" <<'PY'
 import json
 import os
 import plistlib
@@ -63,6 +89,12 @@ import sys
     log_file,
     launcher_log,
     runtime_log_config,
+    menubar_plist_path,
+    menubar_label,
+    menubar_binary,
+    device_store,
+    menubar_log,
+    menubar_available,
 ) = sys.argv[1:]
 log_configuration = {
     "version": 1,
@@ -121,9 +153,33 @@ configuration = {
 }
 with open(plist_path, "wb") as handle:
     plistlib.dump(configuration, handle)
+
+if menubar_available == "true":
+    menubar_configuration = {
+        "Label": menubar_label,
+        "ProgramArguments": [
+            menubar_binary,
+            project_dir,
+            python_path,
+            device_store,
+            log_file,
+        ],
+        "RunAtLoad": True,
+        "ProcessType": "Interactive",
+        "StandardOutPath": menubar_log,
+        "StandardErrorPath": menubar_log,
+    }
+    with open(menubar_plist_path, "wb") as handle:
+        plistlib.dump(menubar_configuration, handle)
+else:
+    try:
+        os.unlink(menubar_plist_path)
+    except FileNotFoundError:
+        pass
 PY
 
 launchctl bootout "gui/${UID}/${SERVICE_NAME}" 2>/dev/null || true
+launchctl bootout "gui/${UID}/${MENUBAR_SERVICE_NAME}" 2>/dev/null || true
 launchctl bootout "gui/${UID}/${LEGACY_SERVICE_NAME}" 2>/dev/null || true
 rm -f "${PLIST_DIR}/${LEGACY_SERVICE_NAME}.plist"
 SERVICE_LOADED=false
@@ -143,6 +199,25 @@ if [ "${SERVICE_LOADED}" != true ]; then
 fi
 launchctl enable "gui/${UID}/${SERVICE_NAME}"
 
+if [ "${MENUBAR_AVAILABLE}" = true ]; then
+    MENUBAR_LOADED=false
+    for ATTEMPT in 1 2 3; do
+        if launchctl bootstrap "gui/${UID}" "${MENUBAR_PLIST_PATH}"; then
+            MENUBAR_LOADED=true
+            break
+        fi
+        if [ "${ATTEMPT}" -lt 3 ]; then
+            echo "菜单栏进程尚未完成注销，1 秒后重试 (${ATTEMPT}/3)..."
+            sleep 1
+        fi
+    done
+    if [ "${MENUBAR_LOADED}" = true ]; then
+        launchctl enable "gui/${UID}/${MENUBAR_SERVICE_NAME}"
+    else
+        echo "⚠️ 菜单栏应用未能启动，后台控制服务仍在运行。"
+    fi
+fi
+
 HEALTHY=false
 for ATTEMPT in 1 2 3 4 5 6 7 8 9 10; do
     if curl -fsS "http://127.0.0.1:8000/api/health" >/dev/null 2>&1; then
@@ -159,6 +234,9 @@ fi
 echo "====================================================="
 echo "✅ AirMac 已安装并启动"
 echo "服务：${SERVICE_NAME}"
+if [ "${MENUBAR_AVAILABLE}" = true ]; then
+    echo "菜单栏：${MENUBAR_SERVICE_NAME}"
+fi
 echo "日志：${LOG_FILE}"
 echo "设备管理：${PYTHON_PATH} ${PROJECT_DIR}/manage_devices.py list"
 echo "====================================================="

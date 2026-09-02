@@ -40,6 +40,12 @@ logging.basicConfig(
 logger = logging.getLogger("AirMac")
 PROJECT_DIR = Path(__file__).resolve().parent
 PORT = 8000
+PWA_ICONS = {
+    "apple-touch-icon.png",
+    "icon-192.png",
+    "icon-512.png",
+    "icon-maskable-512.png",
+}
 AUTH_TIMEOUT_SECONDS = 5.0
 SESSION_IDLE_TIMEOUT_SECONDS = 16.0
 SESSION_MONITOR_INTERVAL_SECONDS = 1.0
@@ -329,8 +335,53 @@ def create_app(
         request_ip(request)
         icon_path = PROJECT_DIR / "icon.png"
         if icon_path.exists():
-            return FileResponse(icon_path)
+            return FileResponse(
+                icon_path,
+                media_type="image/png",
+                headers={"Cache-Control": "public, max-age=86400"},
+            )
         return Response(status_code=404)
+
+    @application.get("/icons/{filename}")
+    async def get_pwa_icon(filename: str, request: Request) -> Response:
+        request_ip(request)
+        if filename not in PWA_ICONS:
+            return Response(status_code=404)
+        return FileResponse(
+            PROJECT_DIR / "icons" / filename,
+            media_type="image/png",
+            headers={"Cache-Control": "public, max-age=604800"},
+        )
+
+    @application.get("/manifest.webmanifest")
+    async def get_manifest(request: Request) -> FileResponse:
+        request_ip(request)
+        return FileResponse(
+            PROJECT_DIR / "manifest.webmanifest",
+            media_type="application/manifest+json",
+            headers={"Cache-Control": "public, max-age=3600"},
+        )
+
+    @application.get("/service-worker.js")
+    async def get_service_worker(request: Request) -> FileResponse:
+        request_ip(request)
+        return FileResponse(
+            PROJECT_DIR / "service-worker.js",
+            media_type="text/javascript",
+            headers={
+                "Cache-Control": "no-cache",
+                "Service-Worker-Allowed": "/",
+            },
+        )
+
+    @application.get("/offline.html")
+    async def get_offline_page(request: Request) -> FileResponse:
+        request_ip(request)
+        return FileResponse(
+            PROJECT_DIR / "offline.html",
+            media_type="text/html",
+            headers={"Cache-Control": "public, max-age=3600"},
+        )
 
     @application.get("/frontend_state.js")
     async def get_frontend_state(request: Request) -> FileResponse:

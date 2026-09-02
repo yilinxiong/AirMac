@@ -442,6 +442,282 @@
             font-size: 13px;
             font-weight: 600;
         }
+
+        /* AirMac Deck shell. Earlier styles remain above so the stable UI can be
+           restored with a single commit revert while this branch is evaluated. */
+        :root {
+            --accent: #65b7ff;
+            --surface: rgba(255, 255, 255, 0.065);
+            --surface-strong: rgba(38, 38, 44, 0.88);
+            --hairline: rgba(255, 255, 255, 0.11);
+        }
+
+        body {
+            background:
+                radial-gradient(circle at 85% 5%, rgba(10, 132, 255, 0.16), transparent 36%),
+                radial-gradient(circle at 10% 90%, rgba(94, 92, 230, 0.12), transparent 38%),
+                #111114;
+        }
+
+        .container {
+            padding: calc(env(safe-area-inset-top) + 10px) 14px calc(env(safe-area-inset-bottom) + 9px);
+            gap: 10px;
+        }
+
+        .app-header {
+            height: 38px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 0 0 auto;
+        }
+
+        .brand {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .brand strong {
+            display: block;
+            font-size: 17px;
+            line-height: 18px;
+            letter-spacing: -0.02em;
+        }
+
+        .brand span {
+            display: block;
+            margin-top: 2px;
+            color: rgba(255, 255, 255, 0.38);
+            font-size: 9px;
+            line-height: 10px;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+
+        .icon-button {
+            width: 34px;
+            height: 34px;
+            flex: 0 0 auto;
+            display: grid;
+            place-items: center;
+            padding: 0;
+            border: 1px solid var(--hairline);
+            border-radius: 50%;
+            background: var(--surface);
+            color: rgba(255, 255, 255, 0.72);
+            font: 20px/1 system-ui;
+            touch-action: manipulation;
+        }
+
+        .views {
+            position: relative;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .view {
+            position: absolute;
+            inset: 0;
+            min-height: 0;
+            opacity: 0;
+            transform: translateY(8px);
+            pointer-events: none;
+            visibility: hidden;
+            transition: opacity 180ms ease, transform 180ms ease;
+        }
+
+        .view.active {
+            opacity: 1;
+            transform: none;
+            pointer-events: auto;
+            visibility: visible;
+        }
+
+        #pad-view { display: flex; }
+
+        #trackpad {
+            width: 100%;
+            min-height: 0;
+            border-radius: 28px;
+            overflow: hidden;
+            background: linear-gradient(145deg, rgba(255,255,255,.085), rgba(255,255,255,.035));
+            box-shadow: inset 0 1px rgba(255,255,255,.08), 0 20px 50px rgba(0,0,0,.22);
+        }
+
+        #trackpad::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: radial-gradient(circle at 50% 40%, rgba(101,183,255,.08), transparent 48%);
+        }
+
+        .touch-feedback {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .touch-dot {
+            position: absolute;
+            width: 44px;
+            height: 44px;
+            margin: -22px 0 0 -22px;
+            border-radius: 50%;
+            border: 1px solid rgba(117, 186, 255, .62);
+            background: rgba(10, 132, 255, .12);
+            box-shadow: 0 0 24px rgba(10, 132, 255, .2);
+            opacity: 0;
+            transform: scale(.65);
+            transition: opacity 120ms ease, transform 120ms ease;
+        }
+
+        .touch-dot.visible { opacity: .75; transform: scale(1); }
+
+        .gesture-toast {
+            position: absolute;
+            z-index: 4;
+            left: 50%;
+            top: 50%;
+            max-width: 75%;
+            padding: 9px 14px;
+            border: 1px solid rgba(255,255,255,.13);
+            border-radius: 999px;
+            background: rgba(20,20,24,.72);
+            color: rgba(255,255,255,.84);
+            font-size: 13px;
+            transform: translate(-50%, -35%) scale(.94);
+            opacity: 0;
+            pointer-events: none;
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            transition: opacity 160ms ease, transform 160ms ease;
+        }
+
+        .gesture-toast.visible { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+        .status-container { bottom: 24px; }
+
+        .deck-scroll,
+        .text-scroll {
+            position: absolute;
+            inset: 0;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+            padding: 5px 2px 18px;
+            box-sizing: border-box;
+        }
+
+        .text-card {
+            padding: 20px 16px;
+            border: 1px solid var(--hairline);
+            border-radius: 25px;
+            background: var(--surface);
+            box-shadow: 0 16px 42px rgba(0,0,0,.18);
+        }
+
+        .text-card h2 { margin: 0 0 6px; font-size: 19px; }
+        .text-card > p { margin: 0 0 18px; color: rgba(255,255,255,.46); font-size: 13px; line-height: 1.45; }
+        .projection-bar { gap: 10px; align-items: flex-end; }
+        .projection-bar textarea { min-height: 54px; height: 54px; max-height: 180px; font-size: 16px; }
+        .clear-btn { top: 13px; }
+
+        .keyboard-button {
+            width: 100%;
+            min-height: 48px;
+            margin-top: 14px;
+            border: 1px solid var(--hairline);
+            border-radius: 16px;
+            background: rgba(255,255,255,.075);
+            color: rgba(255,255,255,.8);
+            font: 600 14px/1 system-ui;
+            touch-action: manipulation;
+        }
+
+        .keyboard-button:active, .icon-button:active { transform: scale(.96); background: rgba(255,255,255,.14); }
+
+        .gesture-guide {
+            margin-top: 14px;
+            padding: 0 4px;
+            color: rgba(255,255,255,.35);
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .bottom-nav {
+            flex: 0 0 57px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+            padding: 4px;
+            border: 1px solid var(--hairline);
+            border-radius: 20px;
+            background: rgba(30,30,34,.68);
+            backdrop-filter: blur(22px);
+            -webkit-backdrop-filter: blur(22px);
+            box-sizing: border-box;
+        }
+
+        .nav-button {
+            border: 0;
+            border-radius: 16px;
+            background: transparent;
+            color: rgba(255,255,255,.38);
+            font: 600 12px/1 system-ui;
+            touch-action: manipulation;
+        }
+
+        .nav-button.active { background: rgba(255,255,255,.09); color: white; }
+        .nav-icon { display: block; margin-bottom: 4px; font-size: 17px; font-weight: 400; }
+
+        .settings-dialog {
+            width: min(calc(100% - 28px), 430px);
+            max-height: calc(100% - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 30px);
+            padding: 0;
+            border: 1px solid rgba(255,255,255,.14);
+            border-radius: 28px;
+            background: rgba(31,31,36,.96);
+            color: white;
+            box-shadow: 0 30px 90px rgba(0,0,0,.55);
+            overflow: hidden;
+        }
+
+        .settings-dialog::backdrop { background: rgba(0,0,0,.58); backdrop-filter: blur(9px); }
+        .settings-form { max-height: inherit; display: flex; flex-direction: column; }
+        .settings-head, .settings-actions { display: flex; align-items: center; padding: 17px 18px; }
+        .settings-head { border-bottom: 1px solid rgba(255,255,255,.08); }
+        .settings-head h2 { flex: 1; margin: 0; font-size: 18px; }
+        .settings-close { border: 0; background: none; color: rgba(255,255,255,.55); font-size: 24px; }
+        .settings-body { overflow-y: auto; padding: 10px 18px 4px; }
+        .setting-row { padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.07); }
+        .setting-label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 9px; font-size: 14px; }
+        .setting-label output { color: var(--accent); font-variant-numeric: tabular-nums; }
+        .setting-row input[type="range"], .setting-row select { width: 100%; accent-color: #0a84ff; }
+        .setting-row select { padding: 10px; border: 1px solid var(--hairline); border-radius: 12px; background: #27272c; color: white; font-size: 14px; }
+        .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 0; }
+        .toggle-row input { width: 42px; height: 24px; accent-color: #0a84ff; }
+        .settings-actions { gap: 10px; border-top: 1px solid rgba(255,255,255,.08); }
+        .settings-actions button { flex: 1; padding: 12px; border: 0; border-radius: 14px; background: rgba(255,255,255,.08); color: white; font: 600 14px system-ui; }
+        .settings-actions .primary { background: #0a84ff; }
+
+        body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after { animation: none !important; transition-duration: 0.001ms !important; }
+        body.low-power #matrixCanvas { display: none; }
+        body.low-power #trackpad, body.low-power .bottom-nav, body.low-power airmac-status { backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+        }
+
+        @media (orientation: landscape) and (max-height: 500px) {
+            .container { padding-top: calc(env(safe-area-inset-top) + 5px); }
+            .app-header { height: 34px; }
+            .brand span { display: none; }
+            .bottom-nav { flex-basis: 48px; }
+            .nav-icon { display: inline; margin: 0 5px 0 0; }
+        }
     </style>
 </head>
 <body>
@@ -464,87 +740,99 @@
     </div>
 
     <div class="container">
-        <!-- Top Controls -->
-        <div class="controls">
-            <div class="glass-btn" id="media-btn">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                    <polygon points="6 5 12 12 6 19"></polygon>
-                    <line x1="15" y1="6" x2="15" y2="18"></line>
-                    <line x1="19" y1="6" x2="19" y2="18"></line>
-                </svg>
-            </div>
-            <div class="glass-btn" id="keyboard-trigger">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
-                    <line x1="6" y1="8" x2="6.01" y2="8"></line>
-                    <line x1="10" y1="8" x2="10.01" y2="8"></line>
-                    <line x1="14" y1="8" x2="14.01" y2="8"></line>
-                    <line x1="18" y1="8" x2="18.01" y2="8"></line>
-                    <line x1="6" y1="12" x2="6.01" y2="12"></line>
-                    <line x1="10" y1="12" x2="10.01" y2="12"></line>
-                    <line x1="14" y1="12" x2="14.01" y2="12"></line>
-                    <line x1="18" y1="12" x2="18.01" y2="12"></line>
-                    <line x1="7" y1="16" x2="17" y2="16"></line>
-                </svg>
-            </div>
-            <div class="glass-btn" id="fullscreen-btn">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
-                </svg>
-            </div>
-            <div class="glass-btn" id="sleep-btn">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                </svg>
-            </div>
-            <div class="glass-btn" id="wake-btn">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="5"></circle>
-                    <line x1="12" y1="1" x2="12" y2="3"></line>
-                    <line x1="12" y1="21" x2="12" y2="23"></line>
-                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                    <line x1="1" y1="12" x2="3" y2="12"></line>
-                    <line x1="21" y1="12" x2="23" y2="12"></line>
-                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-                </svg>
-            </div>
-        </div>
+        <header class="app-header">
+            <div class="brand"><strong>AirMac</strong><span>Remote Deck</span></div>
+            <airmac-status id="connection-status"></airmac-status>
+            <button type="button" class="icon-button" id="settings-button" aria-label="打开设置">⌘</button>
+        </header>
 
-        <!-- Trackpad (Maximized Area) -->
-        <div id="trackpad">
-            <div class="etching">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="6" y="3" width="12" height="18" rx="6" ry="6"></rect>
-                    <line x1="12" y1="7" x2="12" y2="11"></line>
-                </svg>
-                <span>TOUCH PAD</span>
-            </div>
-            <div class="status-container">
-                <div class="spinner" id="status-spinner"></div>
-                <div class="hint" id="status-text"></div>
-            </div>
-        </div>
+        <main class="views">
+            <section class="view active" id="pad-view" aria-label="触控板">
+                <div id="trackpad">
+                    <div class="etching">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="6" y="3" width="12" height="18" rx="6" ry="6"></rect>
+                            <line x1="12" y1="7" x2="12" y2="11"></line>
+                        </svg>
+                        <span>TOUCH PAD</span>
+                    </div>
+                    <div class="touch-feedback" id="touch-feedback" aria-hidden="true"></div>
+                    <div class="gesture-toast" id="gesture-toast" role="status"></div>
+                    <div class="status-container">
+                        <div class="spinner" id="status-spinner"></div>
+                        <div class="hint" id="status-text"></div>
+                    </div>
+                </div>
+            </section>
 
-        <!-- Projection Bar -->
-        <div class="projection-bar">
-            <div class="projection-input-wrap">
-                <textarea id="projection-input" rows="1" maxlength="32768" placeholder="输入长文本投射到Mac..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
-                <button type="button" class="clear-btn" id="projection-clear" aria-label="清空长文本">×</button>
-            </div>
-            <button type="button" class="send-btn" id="projection-btn" aria-label="发送长文本">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="22" y1="2" x2="11" y2="13"></line>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                </svg>
-            </button>
-        </div>
-        
+            <section class="view" id="deck-view" aria-label="快捷控制">
+                <div class="deck-scroll"><airmac-deck id="quick-deck"></airmac-deck></div>
+            </section>
+
+            <section class="view" id="text-view" aria-label="文本输入">
+                <div class="text-scroll">
+                    <div class="text-card">
+                        <h2>文本输入</h2>
+                        <p>长文本会作为一次完整投射发送；实时键盘适合短句和退格。</p>
+                        <div class="projection-bar">
+                            <div class="projection-input-wrap">
+                                <textarea id="projection-input" rows="1" maxlength="32768" placeholder="输入长文本投射到 Mac…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+                                <button type="button" class="clear-btn" id="projection-clear" aria-label="清空长文本">×</button>
+                            </div>
+                            <button type="button" class="send-btn" id="projection-btn" aria-label="发送长文本">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                </svg>
+                            </button>
+                        </div>
+                        <button type="button" class="keyboard-button" id="keyboard-trigger">⌨︎ 打开实时键盘</button>
+                    </div>
+                    <div class="gesture-guide">双指轻点右键 · 双指上下滚动 · 三指左右切换桌面 · 三/四指上滑可在设置中映射</div>
+                </div>
+            </section>
+        </main>
+
+        <nav class="bottom-nav" aria-label="主要功能">
+            <button type="button" class="nav-button active" data-view="pad"><span class="nav-icon">⌁</span>触控板</button>
+            <button type="button" class="nav-button" data-view="deck"><span class="nav-icon">◫</span>快捷台</button>
+            <button type="button" class="nav-button" data-view="text"><span class="nav-icon">⌨︎</span>文本</button>
+        </nav>
+
         <input type="text" id="hidden-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
     </div>
 
-    <script src="/frontend_state.js"></script>
+    <dialog class="settings-dialog" id="settings-dialog">
+        <form method="dialog" class="settings-form" id="settings-form">
+            <div class="settings-head"><h2>控制设置</h2><button type="button" class="settings-close" id="settings-close" aria-label="关闭">×</button></div>
+            <div class="settings-body">
+                <div class="setting-row">
+                    <label class="setting-label" for="pointer-sensitivity"><span>指针灵敏度</span><output id="pointer-value">1.6×</output></label>
+                    <input id="pointer-sensitivity" type="range" min="0.6" max="3" step="0.1">
+                </div>
+                <div class="setting-row">
+                    <label class="setting-label" for="scroll-speed"><span>滚动速度</span><output id="scroll-value">1.0×</output></label>
+                    <input id="scroll-speed" type="range" min="0.5" max="3" step="0.1">
+                </div>
+                <div class="setting-row"><label class="setting-label toggle-row"><span>自然滚动方向</span><input id="natural-scroll" type="checkbox"></label></div>
+                <div class="setting-row">
+                    <label class="setting-label" for="three-finger-up"><span>三指上滑</span></label>
+                    <select id="three-finger-up"><option value="mission_control">调度中心</option><option value="app_launcher">Apps 应用界面</option></select>
+                </div>
+                <div class="setting-row">
+                    <label class="setting-label" for="four-finger-up"><span>四指上滑</span></label>
+                    <select id="four-finger-up"><option value="app_launcher">Apps 应用界面</option><option value="mission_control">调度中心</option><option value="disabled">关闭</option></select>
+                </div>
+                <div class="setting-row"><label class="setting-label toggle-row"><span>触点反馈</span><input id="touch-feedback-setting" type="checkbox"></label></div>
+                <div class="setting-row"><label class="setting-label toggle-row"><span>减少动态效果</span><input id="reduce-motion" type="checkbox"></label></div>
+                <div class="setting-row"><label class="setting-label toggle-row"><span>低功耗模式</span><input id="low-power" type="checkbox"></label></div>
+            </div>
+            <div class="settings-actions"><button type="button" id="settings-reset">恢复默认</button><button type="submit" class="primary" value="save">保存</button></div>
+        </form>
+    </dialog>
+
+    <script src="/frontend_state.js?v=3"></script>
+    <script src="/ui_components.js?v=3"></script>
     <script>
         // Progressive Web App support. Service workers require a secure context;
         // plain LAN HTTP continues to work without one.
@@ -595,6 +883,93 @@
         });
         window.addEventListener('appinstalled', dismissInstallCoach);
 
+        // View shell and persisted preferences
+        const settingsStore = new AirMacState.SettingsStore(localStorage);
+        let settings = settingsStore.load();
+        const settingsDialog = document.getElementById('settings-dialog');
+        const settingsForm = document.getElementById('settings-form');
+        const pointerInput = document.getElementById('pointer-sensitivity');
+        const scrollInput = document.getElementById('scroll-speed');
+        const pointerValue = document.getElementById('pointer-value');
+        const scrollValue = document.getElementById('scroll-value');
+        const gestureToast = document.getElementById('gesture-toast');
+        let gestureToastTimer = null;
+
+        function applySettings() {
+            document.body.classList.toggle('reduce-motion', settings.reduceMotion);
+            document.body.classList.toggle('low-power', settings.lowPower);
+        }
+
+        function populateSettings() {
+            pointerInput.value = settings.pointerSensitivity;
+            scrollInput.value = settings.scrollSpeed;
+            pointerValue.textContent = `${Number(pointerInput.value).toFixed(1)}×`;
+            scrollValue.textContent = `${Number(scrollInput.value).toFixed(1)}×`;
+            document.getElementById('natural-scroll').checked = settings.naturalScroll;
+            document.getElementById('three-finger-up').value = settings.threeFingerUp;
+            document.getElementById('four-finger-up').value = settings.fourFingerUp;
+            document.getElementById('touch-feedback-setting').checked = settings.touchFeedback;
+            document.getElementById('reduce-motion').checked = settings.reduceMotion;
+            document.getElementById('low-power').checked = settings.lowPower;
+        }
+
+        function readSettingsForm() {
+            return {
+                pointerSensitivity: pointerInput.value,
+                scrollSpeed: scrollInput.value,
+                naturalScroll: document.getElementById('natural-scroll').checked,
+                threeFingerUp: document.getElementById('three-finger-up').value,
+                fourFingerUp: document.getElementById('four-finger-up').value,
+                touchFeedback: document.getElementById('touch-feedback-setting').checked,
+                reduceMotion: document.getElementById('reduce-motion').checked,
+                lowPower: document.getElementById('low-power').checked,
+            };
+        }
+
+        function openSettings() {
+            populateSettings();
+            if (typeof settingsDialog.showModal === 'function') settingsDialog.showModal();
+            else settingsDialog.setAttribute('open', '');
+        }
+
+        function closeSettings() {
+            if (typeof settingsDialog.close === 'function') settingsDialog.close();
+            else settingsDialog.removeAttribute('open');
+        }
+
+        function showGestureFeedback(message) {
+            clearTimeout(gestureToastTimer);
+            gestureToast.textContent = message;
+            gestureToast.classList.add('visible');
+            gestureToastTimer = setTimeout(() => gestureToast.classList.remove('visible'), 950);
+        }
+
+        applySettings();
+        document.getElementById('settings-button').addEventListener('click', openSettings);
+        document.getElementById('settings-close').addEventListener('click', closeSettings);
+        pointerInput.addEventListener('input', () => { pointerValue.textContent = `${Number(pointerInput.value).toFixed(1)}×`; });
+        scrollInput.addEventListener('input', () => { scrollValue.textContent = `${Number(scrollInput.value).toFixed(1)}×`; });
+        settingsForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            settings = settingsStore.save(readSettingsForm());
+            applySettings();
+            closeSettings();
+            showGestureFeedback('设置已保存');
+        });
+        document.getElementById('settings-reset').addEventListener('click', () => {
+            settings = settingsStore.reset();
+            populateSettings();
+            applySettings();
+        });
+
+        document.querySelectorAll('.nav-button').forEach((button) => {
+            button.addEventListener('click', () => {
+                document.querySelectorAll('.nav-button').forEach((item) => item.classList.toggle('active', item === button));
+                document.querySelectorAll('.view').forEach((view) => view.classList.toggle('active', view.id === `${button.dataset.view}-view`));
+                if (navigator.vibrate) navigator.vibrate(8);
+            });
+        });
+
         // Matrix Rain Setup
         const canvas = document.getElementById('matrixCanvas');
         const ctx = canvas.getContext('2d');
@@ -635,7 +1010,8 @@
         }
         let lastMatrixFrame = 0;
         function animateMatrix(timestamp) {
-            if (!document.hidden && timestamp - lastMatrixFrame >= 35) {
+            const frameInterval = settings.lowPower ? Infinity : (settings.reduceMotion ? 120 : 35);
+            if (!document.hidden && timestamp - lastMatrixFrame >= frameInterval) {
                 drawMatrix();
                 lastMatrixFrame = timestamp;
             }
@@ -679,6 +1055,12 @@
         let reconnectProbeTimer = null;
         const hintText = document.getElementById('status-text');
         const spinner = document.getElementById('status-spinner');
+        const connectionStatus = document.getElementById('connection-status');
+        const latencyTracker = new AirMacState.LatencyTracker();
+
+        function setConnectionStatus(state, label, latency = latencyTracker.value) {
+            connectionStatus.setStatus(state, label, state === 'online' ? latency : null);
+        }
 
         function clearCredentials() {
             deviceId = null;
@@ -689,6 +1071,7 @@
 
         function showPairing(message = '') {
             shouldReconnect = false;
+            setConnectionStatus('offline', '等待配对');
             pairingOverlay.classList.remove('hidden');
             pairingError.textContent = message;
             pairingChallengeId = null;
@@ -800,6 +1183,8 @@
             clearTimeout(reconnectProbeTimer);
             shouldReconnect = true;
             isConnected = false;
+            latencyTracker.reset();
+            setConnectionStatus('connecting', '连接中');
             hintText.textContent = '连接中...';
             spinner.style.display = 'block';
             const socket = new WebSocket(wsUrl);
@@ -820,17 +1205,21 @@
                 failPendingProjection('连接中断，文本尚未确认发送');
                 if (e.code === 4003) {
                     clearCredentials();
+                    setConnectionStatus('error', '认证失效');
                     spinner.style.display = 'none';
                     showPairing('设备凭据已失效，请重新配对');
                 } else if (e.code === 4009) {
+                    setConnectionStatus('error', '控制器忙');
                     hintText.textContent = '另一台设备正在控制 Mac';
                     spinner.style.display = 'block';
                     scheduleReconnect(3000);
                 } else if (e.code === 4010) {
                     shouldReconnect = false;
+                    setConnectionStatus('offline', '会话已替换');
                     hintText.textContent = '连接已被这台设备的新会话替换';
                     spinner.style.display = 'none';
                 } else if (shouldReconnect) {
+                    setConnectionStatus('connecting', '重连中');
                     hintText.textContent = "断开连接，重连中...";
                     spinner.style.display = 'block';
                     scheduleReconnect();
@@ -847,10 +1236,14 @@
                     if (data.type === 'auth_ok') {
                         isConnected = true;
                         reconnectBackoff.reset();
+                        setConnectionStatus('online', '已连接');
                         hintText.textContent = '';
                         spinner.style.display = 'none';
+                    } else if (data.type === 'heartbeat_ack') {
+                        setConnectionStatus('online', '已连接', latencyTracker.acknowledge());
                     } else if (data.type === 'auth_failed') {
                         shouldReconnect = false;
+                        setConnectionStatus('error', '认证失败');
                         clearCredentials();
                     } else if (data.type === 'copy_success') {
                         if (navigator.vibrate) navigator.vibrate([15, 30, 15]);
@@ -879,6 +1272,8 @@
             const staleSocket = ws;
             ws = null;
             isConnected = false;
+            latencyTracker.reset();
+            setConnectionStatus('connecting', '重连中');
             hintText.textContent = reason;
             spinner.style.display = 'block';
             if (staleSocket) {
@@ -898,6 +1293,7 @@
                 forceReconnect('连接超时，重新连接中...');
                 return;
             }
+            latencyTracker.sent();
             ws.send(JSON.stringify({ action: 'heartbeat' }));
         }
 
@@ -908,6 +1304,8 @@
             clearTimeout(reconnectTimer);
             clearTimeout(reconnectProbeTimer);
             isConnected = false;
+            latencyTracker.reset();
+            setConnectionStatus('offline', '已暂停');
             hintText.textContent = '';
             spinner.style.display = 'none';
             const activeSocket = ws;
@@ -959,6 +1357,10 @@
             return false;
         }
 
+        function bounded(value, limit) {
+            return Math.max(-limit, Math.min(limit, value));
+        }
+
         // --- Trackpad Logic ---
         const trackpad = document.getElementById('trackpad');
         let lastTouch = null;
@@ -971,6 +1373,35 @@
         let isDoubleTap = false;
         const gestureTouches = new AirMacState.GestureTouches();
         const fourFingerAppGesture = new AirMacState.FourFingerAppGesture();
+        const touchFeedback = document.getElementById('touch-feedback');
+        const touchDots = Array.from({ length: 4 }, () => {
+            const dot = document.createElement('span');
+            dot.className = 'touch-dot';
+            touchFeedback.appendChild(dot);
+            return dot;
+        });
+        let pendingTouchFrame = null;
+
+        function renderTouchFeedback(touches) {
+            if (!settings.touchFeedback || settings.lowPower) {
+                touchDots.forEach((dot) => dot.classList.remove('visible'));
+                return;
+            }
+            const points = Array.from(touches).map((touch) => ({ x: touch.clientX, y: touch.clientY }));
+            if (pendingTouchFrame !== null) cancelAnimationFrame(pendingTouchFrame);
+            pendingTouchFrame = requestAnimationFrame(() => {
+                const bounds = trackpad.getBoundingClientRect();
+                touchDots.forEach((dot, index) => {
+                    const point = points[index];
+                    dot.classList.toggle('visible', Boolean(point));
+                    if (point) {
+                        dot.style.left = `${point.x - bounds.left}px`;
+                        dot.style.top = `${point.y - bounds.top}px`;
+                    }
+                });
+                pendingTouchFrame = null;
+            });
+        }
 
         function touchCenter(touches) {
             const points = Array.from(touches);
@@ -988,6 +1419,7 @@
 
         trackpad.addEventListener('touchstart', (e) => {
             e.preventDefault(); 
+            renderTouchFeedback(e.touches);
             const isNewGesture = gestureTouches.max === 0;
             gestureTouches.observe(e.touches.length);
             if (e.touches.length > 1) {
@@ -1054,6 +1486,7 @@
 
         trackpad.addEventListener('touchmove', (e) => {
             e.preventDefault();
+            renderTouchFeedback(e.touches);
             if (!lastTouch) return;
             gestureTouches.observe(e.touches.length);
             
@@ -1071,11 +1504,12 @@
                 const currentTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
                 const dx = currentTouch.x - lastTouch.x;
                 const dy = currentTouch.y - lastTouch.y;
-                const sensitivity = 1.6; 
+                const moveX = bounded(dx * settings.pointerSensitivity, 500);
+                const moveY = bounded(dy * settings.pointerSensitivity, 500);
                 if (isDragging) {
-                    sendCmd({ action: 'mouse_drag', dx: dx * sensitivity, dy: dy * sensitivity });
+                    sendCmd({ action: 'mouse_drag', dx: moveX, dy: moveY });
                 } else {
-                    sendCmd({ action: 'move', dx: dx * sensitivity, dy: dy * sensitivity });
+                    sendCmd({ action: 'move', dx: moveX, dy: moveY });
                 }
                 lastTouch = currentTouch;
                 
@@ -1085,7 +1519,8 @@
                     y: (e.touches[0].clientY + e.touches[1].clientY) / 2 
                 };
                 const dy = currentTouch.y - lastTouch.y;
-                sendCmd({ action: 'scroll', dy: dy });
+                const direction = settings.naturalScroll ? 1 : -1;
+                sendCmd({ action: 'scroll', dy: bounded(dy * settings.scrollSpeed * direction, 1000) });
                 lastTouch = currentTouch;
 
             } else if (e.touches.length === 3) {
@@ -1102,17 +1537,20 @@
 
                 if (Math.abs(dx) > swipeThreshold || Math.abs(dy) > swipeThreshold) {
                     if (Math.abs(dy) > Math.abs(dx) && dy < -swipeThreshold) {
-                        sendCmd({ action: 'mission_control' });
+                        sendCmd({ action: settings.threeFingerUp });
                         isThreeFingerSwiped = true;
+                        showGestureFeedback(settings.threeFingerUp === 'mission_control' ? '调度中心' : 'Apps');
                         if (navigator.vibrate) navigator.vibrate(15);
                     } else if (Math.abs(dx) > Math.abs(dy)) {
                         if (dx < -swipeThreshold) {
                             sendCmd({ action: 'space_right' });
                             isThreeFingerSwiped = true;
+                            showGestureFeedback('下一个桌面');
                             if (navigator.vibrate) navigator.vibrate(15);
                         } else if (dx > swipeThreshold) {
                             sendCmd({ action: 'space_left' });
                             isThreeFingerSwiped = true;
+                            showGestureFeedback('上一个桌面');
                             if (navigator.vibrate) navigator.vibrate(15);
                         }
                     }
@@ -1121,8 +1559,9 @@
                 const currentTouch = touchCenter(e.touches);
                 const dx = currentTouch.x - lastTouch.x;
                 const dy = currentTouch.y - lastTouch.y;
-                if (fourFingerAppGesture.detect(e.touches.length, dx, dy)) {
-                    sendCmd({ action: 'app_launcher' });
+                if (settings.fourFingerUp !== 'disabled' && fourFingerAppGesture.detect(e.touches.length, dx, dy)) {
+                    sendCmd({ action: settings.fourFingerUp });
+                    showGestureFeedback(settings.fourFingerUp === 'app_launcher' ? 'Apps' : '调度中心');
                     if (navigator.vibrate) navigator.vibrate([15, 25, 15]);
                 }
             }
@@ -1130,6 +1569,7 @@
 
         trackpad.addEventListener('touchend', (e) => {
             e.preventDefault();
+            renderTouchFeedback(e.touches);
             clearTimeout(dragTimer);
             const touchDuration = Date.now() - lastTouchTime;
             const completedTouchCount = gestureTouches.finish(e.touches.length);
@@ -1178,6 +1618,7 @@
 
         trackpad.addEventListener('touchcancel', (e) => {
             e.preventDefault();
+            renderTouchFeedback([]);
             clearTimeout(dragTimer);
             if (isDragging) {
                 isDragging = false;
@@ -1188,28 +1629,10 @@
             fourFingerAppGesture.reset();
         }, { passive: false });
 
-        // --- Button Controls ---
-        document.getElementById('media-btn').addEventListener('click', (e) => {
-            e.preventDefault();
-            sendCmd({ action: 'media', command: 'playpause' });
-            if (navigator.vibrate) navigator.vibrate(15);
-        });
-
-        document.getElementById('fullscreen-btn').addEventListener('click', (e) => {
-            e.preventDefault();
-            sendCmd({ action: 'media', command: 'fullscreen' });
-            if (navigator.vibrate) navigator.vibrate(15);
-        });
-
-        document.getElementById('sleep-btn').addEventListener('click', (e) => {
-            e.preventDefault();
-            sendCmd({ action: 'display_sleep' });
-            if (navigator.vibrate) navigator.vibrate(15);
-        });
-
-        document.getElementById('wake-btn').addEventListener('click', (e) => {
-            e.preventDefault();
-            sendCmd({ action: 'wake_watch' });
+        // --- Quick Deck controls ---
+        document.getElementById('quick-deck').addEventListener('airmac-command', (event) => {
+            const sent = sendCmd(event.detail);
+            showGestureFeedback(sent ? '指令已发送' : '等待连接');
             if (navigator.vibrate) navigator.vibrate(15);
         });
 

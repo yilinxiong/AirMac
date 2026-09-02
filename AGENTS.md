@@ -29,13 +29,17 @@ transport confidentiality; never describe it as safe for an untrusted network.
 - `auth.py`: pairing state and `DeviceStore`; token hashes, file locking, atomic
   replacement, permissions, expiry, rate limits, and dialog lifecycle.
 - `protocol.py`: strict discriminated Pydantic message models and 64 KiB envelope
-  limit. Add every new WebSocket action here first.
+  limit. Add every new WebSocket action here first. `quick_action` accepts only
+  its reviewed fixed enum; never turn it into a free-form command surface.
 - `mac_controller.py`: bounded pointer/control queues, Quartz input, ordered system
   commands, clipboard serialization, wake assertion, and forced input release.
 - `index.html`: mobile UI, pairing flow, WebSocket lifecycle, touch handling,
   keyboard input, text projection, and install hint.
-- `frontend_state.js`: browser/Node-compatible state machines. Put gesture or
-  reconnect logic here when it can be isolated and unit tested.
+- `frontend_state.js`: browser/Node-compatible state machines for reconnects,
+  projection, gestures, preferences, and latency. Put isolated logic here and
+  unit test it.
+- `ui_components.js`: build-free native Web Components for the connection pill
+  and Quick Deck. Keep deck messages fixed data, not user-provided commands.
 - `menubar.m`: native AppKit status item. It invokes `manage_devices.py` through
   argv; do not duplicate or directly mutate the credential format.
 - `manage_devices.py`: local CLI for list, revoke, clear, status, and diagnostics.
@@ -90,10 +94,13 @@ transport confidentiality; never describe it as safe for an untrusted network.
 - Record the maximum finger count for the full gesture and classify only after the
   final lift. A multi-finger gesture must not degrade into a lower-finger click or
   swipe while fingers are lifted one at a time.
-- Four-finger upward swipe triggers `app_launcher` once per gesture. macOS 26 opens
-  Apps; older macOS falls back to Launchpad.
+- Three- and four-finger upward actions may be remapped through validated local
+  preferences. Each must still trigger at most once per gesture. `app_launcher`
+  opens Apps on macOS 26 and falls back to Launchpad on older macOS.
 - The text clear control stays compact and inside the textarea so it does not take
   a separate mobile layout column.
+- Pointer and scroll preference values must be normalized and client-generated
+  motion must remain inside the server protocol bounds.
 
 ### Wake and PWA behavior
 
@@ -103,9 +110,9 @@ transport confidentiality; never describe it as safe for an untrusted network.
   bounded 30-second duration, but is stopped on service shutdown/replacement.
 - Plain LAN HTTP may not support Service Workers. PWA registration must remain
   optional and must never block normal remote-control startup.
-- When changing `frontend_state.js` or another cache-first PWA shell asset, bump
-  `CACHE_NAME` in `service-worker.js`; otherwise installed HTTPS PWAs may run
-  incompatible old code.
+- When changing a frontend script, bump both its query version in `index.html`
+  and `CACHE_NAME` in `service-worker.js`. Keep scripts network-first so an old
+  worker cannot combine a new page with incompatible cached modules.
 - Preserve the manifest, Apple touch icon, 192/512 icons, and maskable icon routes.
   Regenerate icons with `tools/generate_pwa_icons.sh` after source artwork changes.
 
@@ -122,7 +129,7 @@ transport confidentiality; never describe it as safe for an untrusted network.
 
    ```bash
    venv/bin/python -m pytest -q
-   node --test tests/frontend_state.test.js
+   node --test tests/frontend_state.test.js tests/ui_components.test.js
    venv/bin/python -m compileall -q main.py auth.py protocol.py mac_controller.py manage_devices.py pairing_dialog.py tests
    sed -n '/^[[:space:]]*<script>$/,/^[[:space:]]*<\/script>$/p' index.html | sed '1d;$d' | node --check -
    node --check service-worker.js

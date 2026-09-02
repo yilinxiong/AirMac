@@ -18,6 +18,11 @@ AirMac turns an iPhone into a low-latency trackpad and keyboard for a Mac on the
 - Two-finger right-click and scrolling
 - Three-finger Mission Control and desktop switching
 - Four-finger upward swipe to open Launchpad or the macOS Apps interface
+- AirMac Deck tabs for trackpad, fixed quick actions, and text input
+- Live connection/latency indicator and persisted sensitivity, scroll, gesture,
+  motion, and power preferences
+- Window tiling, volume, brightness, screenshot-to-clipboard, lock, sleep, and
+  wake shortcuts
 - Long-press dragging with disconnect-safe mouse release
 - Keyboard input and long-text projection
 - Confirmed long-text delivery with a compact in-field clear button
@@ -35,9 +40,9 @@ AirMac turns an iPhone into a low-latency trackpad and keyboard for a Mac on the
 | Two-finger move / tap | Scroll / right click |
 | Double tap | Triple-click selection followed by automatic copy |
 | Press and hold, then move | Drag; disconnecting always releases the mouse |
-| Three-finger swipe up | Mission Control |
+| Three-finger swipe up | Mission Control by default; configurable to Apps |
 | Three-finger swipe left or right | Switch Spaces |
-| Four-finger swipe up | Open Apps on macOS 26 or Launchpad on older macOS |
+| Four-finger swipe up | Apps by default; configurable to Mission Control/off |
 
 ### Install
 
@@ -64,6 +69,13 @@ when the local Swift toolchain supports it, the copy HUD:
 ```
 
 Open the URL printed by AirMac in iPhone Safari. On first use, name the phone, request a pairing code, and enter the six digits shown in the Mac dialog. The resulting device token is stored by Safari and is never placed in the WebSocket URL or access log.
+
+The mobile interface has three bottom tabs. **Pad** keeps the largest possible
+touch surface, **Deck** contains fixed macOS shortcuts, and **Text** contains both
+confirmed long-text projection and the live keyboard. The top status pill reports
+connection state and smoothed heartbeat latency. Open the command button in the
+top-right corner to tune pointer/scroll speed, scroll direction, gesture mapping,
+touch feedback, reduced motion, and low-power mode; preferences stay on the phone.
 
 Add the page to the iPhone Home Screen for the full-screen experience. AirMac now
 includes a complete web app manifest, iPhone and maskable icons, and an in-app
@@ -125,16 +137,17 @@ tail -f "$HOME/Library/Logs/AirMac/remote.log"
 launchctl print "gui/$(id -u)/com.airmac.remote"
 ```
 
-If the Home Screen app still shows an older interface, close it completely and
-open the Safari URL once. HTTPS deployments using Service Workers update the PWA
-shell automatically when the bundled cache version changes.
+Frontend scripts use versioned URLs and a network-first Service Worker strategy,
+so an installed web app cannot combine a new interface with stale state modules.
+If a Home Screen app is already open during an upgrade, close and reopen it once
+to start the newly installed page.
 
 ### Development checks
 
 ```bash
 pip install -r requirements-dev.txt
 pytest
-node --test tests/frontend_state.test.js
+node --test tests/frontend_state.test.js tests/ui_components.test.js
 bash -n install_service.sh uninstall_service.sh tools/generate_pwa_icons.sh
 clang -fobjc-arc -framework Cocoa menubar.m -o /tmp/airmac-menubar-check
 ```
@@ -151,6 +164,9 @@ AirMac 可以把同一可信局域网中的 iPhone 变成 Mac 的低延迟触控
 - 双指右键和滚动
 - 三指调度中心及桌面切换
 - 四指上滑打开 Launchpad 或新版 macOS Apps 应用界面
+- AirMac Deck 三页布局：触控板、快捷台与文本输入
+- 实时连接/延迟状态，以及可保存的灵敏度、滚动、手势、动态效果和功耗设置
+- 窗口平铺、音量、亮度、截屏到剪贴板、锁定、息屏与唤醒快捷动作
 - 长按拖拽，断线时自动释放鼠标
 - 手机键盘输入和长文本投射
 - 长文本执行确认，以及输入框内嵌的一键清空按钮
@@ -168,9 +184,9 @@ AirMac 可以把同一可信局域网中的 iPhone 变成 Mac 的低延迟触控
 | 双指移动 / 轻点 | 滚动 / 右键点击 |
 | 连续轻点两次 | 三击选中文本并自动复制 |
 | 单指长按后移动 | 拖拽；断线时强制释放鼠标 |
-| 三指上滑 | 打开调度中心 |
+| 三指上滑 | 默认打开调度中心，可改为 Apps |
 | 三指左右滑 | 切换桌面空间 |
-| 四指上滑 | macOS 26 打开 Apps，旧版 macOS 打开 Launchpad |
+| 四指上滑 | 默认打开 Apps，可改为调度中心或关闭 |
 
 ### 安装与运行
 
@@ -197,6 +213,11 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --ws-max-size 65536 --log-config log
 ```
 
 在 iPhone Safari 中打开终端打印的网址。首次使用时输入设备名称，请求配对，然后把 Mac 弹窗显示的 6 位验证码填到手机。配对令牌保存在 Safari 中，不会出现在 WebSocket URL 或访问日志里。
+
+手机界面底部包含三个页面：“触控板”保留最大触摸区域，“快捷台”放置固定且经过协议
+校验的 macOS 动作，“文本”集中长文本投射与实时键盘。顶部状态胶囊显示连接状态和经过
+平滑处理的心跳延迟；右上角命令按钮可以调整指针/滚动速度、滚动方向、三/四指映射、
+触点反馈、减少动态效果和低功耗模式，设置只保存在手机本地。
 
 推荐通过 Safari 分享菜单选择“添加到主屏幕”。AirMac 已包含完整 manifest、
 iPhone/自适应图标和应用内安装提示。浏览器允许 Service Worker 时，还会缓存一个
@@ -240,8 +261,8 @@ tail -f "$HOME/Library/Logs/AirMac/remote.log"
 launchctl print "gui/$(id -u)/com.airmac.remote"
 ```
 
-如果主屏幕版本仍显示旧界面，请彻底关闭后先在 Safari 中重新打开一次地址。
-HTTPS/Service Worker 部署会在内置缓存版本更新后自动替换 PWA 外壳。
+前端脚本使用版本化 URL，Service Worker 对脚本采用网络优先策略，避免新界面与旧状态
+模块混用。如果升级时主屏幕版本正在运行，关闭后重新打开一次即可载入新页面。
 
 卸载后台服务不会删除设备记录或日志：
 
@@ -258,7 +279,8 @@ HTTPS/Service Worker 部署会在内置缓存版本更新后自动替换 PWA 外
 | `protocol.py` | Strict, size-bounded Pydantic message models |
 | `mac_controller.py` | Ordered input queues, Quartz events, clipboard and macOS commands |
 | `index.html` | Mobile UI, connection lifecycle and touch gesture dispatch |
-| `frontend_state.js` | Testable reconnect, projection and gesture state machines |
+| `frontend_state.js` | Testable reconnect, projection, gesture, settings and latency state |
+| `ui_components.js` | Native Web Components for connection status and the fixed Quick Deck |
 | `menubar.m` | Native AppKit menu-bar manager |
 | `install_service.sh` | Build and install the server/menu-bar LaunchAgents |
 | `manage_devices.py` | Local-only device and service management CLI |

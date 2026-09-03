@@ -77,6 +77,9 @@ transport confidentiality; never describe it as safe for an untrusted network.
 - Never block the asyncio event loop with Quartz, clipboard, AppleScript, process,
   or keyboard work. Use the existing executors/async subprocess helpers.
 - The Control Center shortcut must emit only macOS's fixed global Fn-C key event.
+  Close Fullscreen must verify the focused window's `AXFullScreen` value before
+  pressing its fixed `AXCloseButton`; never infer fullscreen state from phone
+  input or send an unconditional close/quit shortcut.
   Audio switching must invoke the bundled helper with the literal `cycle`
   argument; never accept a device identifier, script source, or executable path
   from the phone.

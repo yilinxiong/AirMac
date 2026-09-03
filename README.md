@@ -24,6 +24,7 @@ AirMac turns an iPhone into a low-latency trackpad and keyboard for a Mac on the
 - Window tiling, volume, brightness, screenshot-to-clipboard, lock, sleep, and
   wake shortcuts
 - One-tap Control Center access, plus cycling through available audio output devices
+- Close the focused window only when macOS reports that it is full screen
 - Long-press dragging with disconnect-safe mouse release
 - Keyboard input and long-text projection
 - Confirmed long-text delivery with a compact in-field clear button
@@ -78,7 +79,10 @@ connection state and smoothed heartbeat latency. Open the command button in the
 top-right corner to tune pointer/scroll speed, scroll direction, gesture mapping,
 touch feedback, reduced motion, and low-power mode; preferences stay on the phone.
 The Deck **Quick Menu** group contains one-tap Control Center, Apps, Mission
-Control, playback, and fullscreen actions. **Switch Speaker** cycles through
+Control, playback, fullscreen, and close-fullscreen actions. Close Fullscreen
+uses the macOS Accessibility API and does nothing when the focused window is not
+full screen; it closes the window rather than force-quitting the whole app.
+**Switch Speaker** cycles through
 currently available Core Audio output devices and reports the selected device
 name on the phone. Wake, lock, and display sleep stay at the top of Deck;
 less-used window controls stay at the bottom.
@@ -175,6 +179,7 @@ AirMac 可以把同一可信局域网中的 iPhone 变成 Mac 的低延迟触控
 - 实时连接/延迟状态，以及可保存的灵敏度、滚动、手势、动态效果和功耗设置
 - 窗口平铺、音量、亮度、截屏到剪贴板、锁定、息屏与唤醒快捷动作
 - 一键打开控制中心，以及循环切换可用音频输出设备
+- 仅当前台聚焦窗口确实处于全屏时关闭该窗口
 - 长按拖拽，断线时自动释放鼠标
 - 手机键盘输入和长文本投射
 - 长文本执行确认，以及输入框内嵌的一键清空按钮
@@ -226,8 +231,10 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --ws-max-size 65536 --log-config log
 校验的 macOS 动作，“文本”集中长文本投射与实时键盘。顶部状态胶囊显示连接状态和经过
 平滑处理的心跳延迟；右上角命令按钮可以调整指针/滚动速度、滚动方向、三/四指映射、
 触点反馈、减少动态效果和低功耗模式，设置只保存在手机本地。
-快捷台的“快捷菜单”分组包含一键控制中心、Apps、调度中心、播放和全屏操作；
+快捷台的“快捷菜单”分组包含一键控制中心、Apps、调度中心、播放、全屏和关闭全屏操作；
 控制中心按钮使用 macOS 全局 `Fn-C` 快捷键，因此当前应用处于全屏 Space 时仍可使用。
+“关闭全屏”通过 macOS 辅助功能接口检查聚焦窗口状态；普通窗口会被忽略，并且该动作
+关闭的是当前窗口，而不是强制退出整个应用。
 “切换扬声器”会在当前可用的 Core Audio 输出设备间循环，并在手机上显示设备名称。
 唤醒、锁定和显示器睡眠位于快捷台顶部，较少使用的窗口操作位于最底部。三页共用的
 紧凑手势提示常驻底部导航栏下方。

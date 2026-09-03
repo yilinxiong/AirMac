@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Awaitable, Callable
 
+import ApplicationServices as AX
 import Quartz
 from pynput.keyboard import Controller as KeyboardController, Key
 
@@ -21,6 +22,7 @@ NotifyCallback = Callable[[dict[str, object]], Awaitable[None]]
 APPS_APPLICATION_PATH = Path("/System/Applications/Apps.app")
 CONTROL_CENTER_KEY_CODE = 8
 CONTROL_CENTER_FLAGS = Quartz.kCGEventFlagMaskSecondaryFn
+AX_FULLSCREEN_ATTRIBUTE = "AXFullScreen"
 WINDOW_SHORTCUT_FLAGS = (
     Quartz.kCGEventFlagMaskSecondaryFn | Quartz.kCGEventFlagMaskControl
 )
@@ -427,6 +429,18 @@ class MacController:
             assert isinstance(message, QuickAction)
             if message.command == "screenshot":
                 await self._run_process("screencapture", "-c", "-x")
+            elif message.command == "close_fullscreen":
+                result = await loop.run_in_executor(
+                    self.control_executor, self._close_fullscreen_window
+                )
+                await item.notify(
+                    {
+                        "type": "action_result",
+                        "action": "quick_action",
+                        "command": "close_fullscreen",
+                        "status": result,
+                    }
+                )
             elif message.command == "cycle_audio_output":
                 if not self.audio_switcher_path.is_file():
                     raise RuntimeError("Audio switcher is not installed")
@@ -722,6 +736,38 @@ class MacController:
             )
         elif command == "open_control_center":
             self._post_key_code(CONTROL_CENTER_KEY_CODE, CONTROL_CENTER_FLAGS)
+
+    def _close_fullscreen_window(self) -> str:
+        system = AX.AXUIElementCreateSystemWide()
+        error, application = AX.AXUIElementCopyAttributeValue(
+            system, AX.kAXFocusedApplicationAttribute, None
+        )
+        if error != AX.kAXErrorSuccess or application is None:
+            return "error"
+
+        error, window = AX.AXUIElementCopyAttributeValue(
+            application, AX.kAXFocusedWindowAttribute, None
+        )
+        if error != AX.kAXErrorSuccess or window is None:
+            return "ignored"
+
+        error, is_fullscreen = AX.AXUIElementCopyAttributeValue(
+            window, AX_FULLSCREEN_ATTRIBUTE, None
+        )
+        if error != AX.kAXErrorSuccess or not bool(is_fullscreen):
+            return "ignored"
+
+        error, close_button = AX.AXUIElementCopyAttributeValue(
+            window, AX.kAXCloseButtonAttribute, None
+        )
+        if error != AX.kAXErrorSuccess or close_button is None:
+            return "error"
+        if (
+            AX.AXUIElementPerformAction(close_button, AX.kAXPressAction)
+            != AX.kAXErrorSuccess
+        ):
+            return "error"
+        return "closed"
 
     def _post_key_code(self, key_code: int, flags: int) -> None:
         for is_down in (True, False):

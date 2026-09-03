@@ -45,6 +45,7 @@ def test_auth_message_is_strict() -> None:
         {"action": "quick_action", "command": "window_left"},
         {"action": "quick_action", "command": "screenshot"},
         {"action": "quick_action", "command": "open_control_center"},
+        {"action": "quick_action", "command": "close_fullscreen"},
         {"action": "quick_action", "command": "cycle_audio_output"},
         {"action": "type_text", "request_id": "request_123", "text": "hello"},
         {"action": "mouse_up"},

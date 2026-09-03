@@ -908,7 +908,7 @@
     </div>
 
     <script src="/frontend_state.js?v=3"></script>
-    <script src="/ui_components.js?v=6"></script>
+    <script src="/ui_components.js?v=7"></script>
     <script>
         // Progressive Web App support. Service workers require a secure context;
         // plain LAN HTTP continues to work without one.
@@ -1342,6 +1342,15 @@
                             showGestureFeedback(`已切换到 ${data.output_name}`);
                         } else {
                             showGestureFeedback('无法切换扬声器');
+                        }
+                    } else if (data.type === 'action_result' && data.action === 'quick_action'
+                            && data.command === 'close_fullscreen') {
+                        if (data.status === 'closed') {
+                            showGestureFeedback('已关闭全屏窗口');
+                        } else if (data.status === 'ignored') {
+                            showGestureFeedback('当前窗口不是全屏');
+                        } else {
+                            showGestureFeedback('无法关闭全屏窗口');
                         }
                     }
                 } catch (e) {

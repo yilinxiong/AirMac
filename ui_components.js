@@ -22,6 +22,7 @@
                 { label: '调度中心', icon: '◇', message: { action: 'mission_control' } },
                 { label: '播放 / 暂停', icon: '▶︎', message: { action: 'media', command: 'playpause' } },
                 { label: '全屏', icon: '⛶', message: { action: 'media', command: 'fullscreen' } },
+                { label: '关闭全屏', icon: '×', message: { action: 'quick_action', command: 'close_fullscreen' }, tone: 'danger' },
             ],
         },
         {

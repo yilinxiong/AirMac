@@ -96,6 +96,7 @@ class QuickAction(ActionBase):
         "screenshot",
         "lock_screen",
         "open_control_center",
+        "close_fullscreen",
         "cycle_audio_output",
     ]
 

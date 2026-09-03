@@ -6,7 +6,7 @@ const { DECK_GROUPS } = require('../ui_components.js');
 
 test('quick deck exposes only fixed protocol messages', () => {
     const actions = DECK_GROUPS.flatMap((group) => group.actions);
-    assert.equal(actions.length, 19);
+    assert.equal(actions.length, 20);
     assert.equal(DECK_GROUPS[0].title, '电源与登录');
     assert.equal(DECK_GROUPS[1].title, '快捷菜单');
     assert.equal(DECK_GROUPS.at(-1).title, '窗口');
@@ -17,6 +17,7 @@ test('quick deck exposes only fixed protocol messages', () => {
     assert.equal(actions.some((item) => item.message.action === 'app_launcher'), true);
     assert.equal(actions.some((item) => item.message.command === 'screenshot'), true);
     assert.equal(actions.some((item) => item.message.command === 'open_control_center'), true);
+    assert.equal(actions.some((item) => item.message.command === 'close_fullscreen'), true);
     assert.equal(actions.some((item) => item.message.command === 'open_wifi'), false);
     assert.equal(actions.some((item) => item.message.command === 'open_bluetooth'), false);
     assert.equal(actions.some((item) => item.message.command === 'open_airdrop'), false);

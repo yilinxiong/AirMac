@@ -124,6 +124,100 @@ def test_quick_action_uses_fixed_quartz_shortcuts(
     ]
 
 
+def test_close_fullscreen_window_uses_accessibility_close_button(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    controller = MacController()
+    values = {
+        ("system", mac_controller.AX.kAXFocusedApplicationAttribute): "application",
+        ("application", mac_controller.AX.kAXFocusedWindowAttribute): "window",
+        ("window", mac_controller.AX_FULLSCREEN_ATTRIBUTE): True,
+        ("window", mac_controller.AX.kAXCloseButtonAttribute): "close-button",
+    }
+    pressed: list[tuple[str, str]] = []
+
+    monkeypatch.setattr(
+        mac_controller.AX, "AXUIElementCreateSystemWide", lambda: "system"
+    )
+    monkeypatch.setattr(
+        mac_controller.AX,
+        "AXUIElementCopyAttributeValue",
+        lambda element, attribute, _: (
+            mac_controller.AX.kAXErrorSuccess,
+            values[(element, attribute)],
+        ),
+    )
+    monkeypatch.setattr(
+        mac_controller.AX,
+        "AXUIElementPerformAction",
+        lambda element, action: (
+            pressed.append((element, action)) or mac_controller.AX.kAXErrorSuccess
+        ),
+    )
+
+    assert controller._close_fullscreen_window() == "closed"
+    assert pressed == [("close-button", mac_controller.AX.kAXPressAction)]
+
+
+def test_close_fullscreen_window_ignores_regular_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    controller = MacController()
+    values = {
+        ("system", mac_controller.AX.kAXFocusedApplicationAttribute): "application",
+        ("application", mac_controller.AX.kAXFocusedWindowAttribute): "window",
+        ("window", mac_controller.AX_FULLSCREEN_ATTRIBUTE): False,
+    }
+    pressed: list[tuple[object, object]] = []
+
+    monkeypatch.setattr(
+        mac_controller.AX, "AXUIElementCreateSystemWide", lambda: "system"
+    )
+    monkeypatch.setattr(
+        mac_controller.AX,
+        "AXUIElementCopyAttributeValue",
+        lambda element, attribute, _: (
+            mac_controller.AX.kAXErrorSuccess,
+            values[(element, attribute)],
+        ),
+    )
+    monkeypatch.setattr(
+        mac_controller.AX,
+        "AXUIElementPerformAction",
+        lambda element, action: pressed.append((element, action)),
+    )
+
+    assert controller._close_fullscreen_window() == "ignored"
+    assert pressed == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("result", ["closed", "ignored", "error"])
+async def test_close_fullscreen_reports_result(
+    result: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    controller = MacController()
+    notifications: list[dict[str, object]] = []
+
+    async def notify(payload: dict[str, object]) -> None:
+        notifications.append(payload)
+
+    monkeypatch.setattr(controller, "_close_fullscreen_window", lambda: result)
+    message = parse_action_message(
+        json.dumps({"action": "quick_action", "command": "close_fullscreen"})
+    )
+    await controller._execute_control(QueuedAction(message, 1, notify))
+
+    assert notifications == [
+        {
+            "type": "action_result",
+            "action": "quick_action",
+            "command": "close_fullscreen",
+            "status": result,
+        }
+    ]
+
+
 @pytest.mark.asyncio
 async def test_screenshot_quick_action_uses_parameterized_process(
     monkeypatch: pytest.MonkeyPatch,

@@ -885,7 +885,7 @@
     </div>
 
     <script src="/frontend_state.js?v=3"></script>
-    <script src="/ui_components.js?v=3"></script>
+    <script src="/ui_components.js?v=4"></script>
     <script>
         // Progressive Web App support. Service workers require a secure context;
         // plain LAN HTTP continues to work without one.
@@ -1313,6 +1313,13 @@
                         hintText.textContent = '指令过快，已丢弃部分输入';
                     } else if (data.type === 'action_result' && data.action === 'type_text') {
                         finishProjection(data);
+                    } else if (data.type === 'action_result' && data.action === 'quick_action'
+                            && data.command === 'cycle_audio_output') {
+                        if (data.status === 'ok' && data.output_name) {
+                            showGestureFeedback(`已切换到 ${data.output_name}`);
+                        } else {
+                            showGestureFeedback('无法切换扬声器');
+                        }
                     }
                 } catch (e) {
                     console.error("Error parsing message:", e);

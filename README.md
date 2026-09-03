@@ -23,6 +23,8 @@ AirMac turns an iPhone into a low-latency trackpad and keyboard for a Mac on the
   motion, and power preferences
 - Window tiling, volume, brightness, screenshot-to-clipboard, lock, sleep, and
   wake shortcuts
+- Wi-Fi and Bluetooth settings, Finder AirDrop, and one-tap cycling through
+  available audio output devices
 - Long-press dragging with disconnect-safe mouse release
 - Keyboard input and long-text projection
 - Confirmed long-text delivery with a compact in-field clear button
@@ -76,6 +78,9 @@ confirmed long-text projection and the live keyboard. The top status pill report
 connection state and smoothed heartbeat latency. Open the command button in the
 top-right corner to tune pointer/scroll speed, scroll direction, gesture mapping,
 touch feedback, reduced motion, and low-power mode; preferences stay on the phone.
+The Deck connection group opens the matching macOS Wi-Fi/Bluetooth settings or
+Finder AirDrop view. **Switch Speaker** cycles through currently available Core
+Audio output devices and reports the selected device name on the phone.
 
 Add the page to the iPhone Home Screen for the full-screen experience. AirMac now
 includes a complete web app manifest, iPhone and maskable icons, and an in-app
@@ -150,6 +155,7 @@ pytest
 node --test tests/frontend_state.test.js tests/ui_components.test.js
 bash -n install_service.sh uninstall_service.sh tools/generate_pwa_icons.sh
 clang -fobjc-arc -framework Cocoa menubar.m -o /tmp/airmac-menubar-check
+clang -fobjc-arc -framework Foundation -framework CoreAudio audio_switcher.m -o /tmp/airmac-audio-switcher-check
 ```
 
 ## 中文说明
@@ -167,6 +173,7 @@ AirMac 可以把同一可信局域网中的 iPhone 变成 Mac 的低延迟触控
 - AirMac Deck 三页布局：触控板、快捷台与文本输入
 - 实时连接/延迟状态，以及可保存的灵敏度、滚动、手势、动态效果和功耗设置
 - 窗口平铺、音量、亮度、截屏到剪贴板、锁定、息屏与唤醒快捷动作
+- Wi‑Fi 与蓝牙设置、Finder AirDrop，以及一键循环切换可用音频输出设备
 - 长按拖拽，断线时自动释放鼠标
 - 手机键盘输入和长文本投射
 - 长文本执行确认，以及输入框内嵌的一键清空按钮
@@ -218,6 +225,8 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --ws-max-size 65536 --log-config log
 校验的 macOS 动作，“文本”集中长文本投射与实时键盘。顶部状态胶囊显示连接状态和经过
 平滑处理的心跳延迟；右上角命令按钮可以调整指针/滚动速度、滚动方向、三/四指映射、
 触点反馈、减少动态效果和低功耗模式，设置只保存在手机本地。
+快捷台的“连接”分组会打开对应的 macOS Wi‑Fi/蓝牙设置或 Finder AirDrop；
+“切换扬声器”会在当前可用的 Core Audio 输出设备间循环，并在手机上显示设备名称。
 
 推荐通过 Safari 分享菜单选择“添加到主屏幕”。AirMac 已包含完整 manifest、
 iPhone/自适应图标和应用内安装提示。浏览器允许 Service Worker 时，还会缓存一个
@@ -281,6 +290,7 @@ launchctl print "gui/$(id -u)/com.airmac.remote"
 | `index.html` | Mobile UI, connection lifecycle and touch gesture dispatch |
 | `frontend_state.js` | Testable reconnect, projection, gesture, settings and latency state |
 | `ui_components.js` | Native Web Components for connection status and the fixed Quick Deck |
+| `audio_switcher.m` | Core Audio helper that safely lists and cycles output devices |
 | `menubar.m` | Native AppKit menu-bar manager |
 | `install_service.sh` | Build and install the server/menu-bar LaunchAgents |
 | `manage_devices.py` | Local-only device and service management CLI |

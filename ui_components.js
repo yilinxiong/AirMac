@@ -36,6 +36,15 @@
             ],
         },
         {
+            title: '连接',
+            actions: [
+                { label: 'Wi-Fi', icon: '⌁', message: { action: 'quick_action', command: 'open_wifi' } },
+                { label: '蓝牙', icon: 'ᛒ', message: { action: 'quick_action', command: 'open_bluetooth' } },
+                { label: 'AirDrop', icon: '◉', message: { action: 'quick_action', command: 'open_airdrop' } },
+                { label: '切换扬声器', icon: '◖', message: { action: 'quick_action', command: 'cycle_audio_output' }, tone: 'accent' },
+            ],
+        },
+        {
             title: '电源',
             actions: [
                 { label: '唤醒', icon: '☀', message: { action: 'wake_watch' }, tone: 'accent' },

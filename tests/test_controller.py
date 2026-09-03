@@ -154,6 +154,7 @@ async def test_connection_shortcuts_use_fixed_control_center_script(
 ) -> None:
     controller = MacController()
     calls: list[tuple[str, ...]] = []
+    key_events: list[tuple[int, int]] = []
     notifications: list[dict[str, object]] = []
 
     async def fake_run_process_output(
@@ -166,11 +167,22 @@ async def test_connection_shortcuts_use_fixed_control_center_script(
         notifications.append(payload)
 
     monkeypatch.setattr(controller, "_run_process_output", fake_run_process_output)
+    monkeypatch.setattr(
+        controller,
+        "_post_key_code",
+        lambda key_code, flags: key_events.append((key_code, flags)),
+    )
     message = parse_action_message(
         json.dumps({"action": "quick_action", "command": command})
     )
     await controller._execute_control(QueuedAction(message, 1, notify))
 
+    assert key_events == [
+        (
+            mac_controller.CONTROL_CENTER_KEY_CODE,
+            mac_controller.CONTROL_CENTER_FLAGS,
+        )
+    ]
     assert calls == [
         (
             "osascript",

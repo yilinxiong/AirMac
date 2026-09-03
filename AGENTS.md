@@ -42,8 +42,9 @@ transport confidentiality; never describe it as safe for an untrusted network.
   and Quick Deck. Keep deck messages fixed data, not user-provided commands.
 - `audio_switcher.m`: generated-binary-free Core Audio helper. It accepts only
   `list` or `cycle`, and prints the selected output-device name to stdout.
-- `control_center.applescript`: fixed source for opening pinned or nested Control
-  Center Wi-Fi/Bluetooth/AirDrop panels. Targets arrive through validated argv.
+- `control_center.applescript`: fixed source for selecting a connectivity control
+  after the server emits macOS's global Fn-C shortcut. Targets arrive through
+  validated argv; do not focus or scan the foreground app's menu bar.
 - `menubar.m`: native AppKit status item. It invokes `manage_devices.py` through
   argv; do not duplicate or directly mutate the credential format.
 - `manage_devices.py`: local CLI for list, revoke, clear, status, and diagnostics.

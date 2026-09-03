@@ -50,22 +50,19 @@ on run argv
         error "Unsupported Control Center target"
     end if
 
-    tell application "System Events"
-        tell process "ControlCenter"
-            set frontmost to true
-            set barItems to every menu bar item of menu bar 1
-            if my pressMatching(barItems, targetNames) then return "opened"
-
-            set controlCenterNames to {"Control Center", "Control Centre", "控制中心"}
-            if not my pressMatching(barItems, controlCenterNames) then
-                error "Control Center menu item not found"
-            end if
-            delay 0.25
-            try
-                set panelElements to entire contents of window 1
-                if my pressMatching(panelElements, targetNames) then return "opened"
-            end try
+    -- The caller sends the global Fn-C shortcut first. Only inspect the
+    -- resulting panel here: scanning or focusing the menu bar is both slower
+    -- and unreliable while another application owns a full-screen Space.
+    repeat 10 times
+        tell application "System Events"
+            tell process "ControlCenter"
+                try
+                    set panelElements to entire contents of window 1
+                    if my pressMatching(panelElements, targetNames) then return "opened"
+                end try
+            end tell
         end tell
-    end tell
+        delay 0.03
+    end repeat
     error "Control Center target not found"
 end run

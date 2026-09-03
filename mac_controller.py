@@ -25,6 +25,8 @@ CONTROL_CENTER_TARGETS = {
     "open_bluetooth": "bluetooth",
     "open_airdrop": "airdrop",
 }
+CONTROL_CENTER_KEY_CODE = 8
+CONTROL_CENTER_FLAGS = Quartz.kCGEventFlagMaskSecondaryFn
 WINDOW_SHORTCUT_FLAGS = (
     Quartz.kCGEventFlagMaskSecondaryFn | Quartz.kCGEventFlagMaskControl
 )
@@ -432,6 +434,12 @@ class MacController:
             if message.command == "screenshot":
                 await self._run_process("screencapture", "-c", "-x")
             elif message.command in CONTROL_CENTER_TARGETS:
+                await loop.run_in_executor(
+                    self.control_executor,
+                    self._post_key_code,
+                    CONTROL_CENTER_KEY_CODE,
+                    CONTROL_CENTER_FLAGS,
+                )
                 await self._run_process_output(
                     "osascript",
                     str(CONTROL_CENTER_SCRIPT_PATH),

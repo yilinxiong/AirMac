@@ -643,11 +643,25 @@
         .keyboard-button:active, .icon-button:active { transform: scale(.96); background: rgba(255,255,255,.14); }
 
         .gesture-guide {
-            margin-top: 14px;
-            padding: 0 4px;
+            min-height: 26px;
+            padding: 0 3px;
             color: rgba(255,255,255,.35);
-            font-size: 12px;
-            line-height: 1.6;
+            font-size: 10px;
+            line-height: 13px;
+            text-align: center;
+            letter-spacing: .01em;
+        }
+
+        .gesture-guide span {
+            display: block;
+            white-space: nowrap;
+        }
+
+        .bottom-shell {
+            flex: 0 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
         }
 
         .bottom-nav {
@@ -768,6 +782,10 @@
             .bottom-nav { flex-basis: 52px; }
             .nav-button { flex-direction: row; gap: 5px; }
             .nav-icon { flex-basis: 18px; }
+            .bottom-shell { gap: 2px; }
+            .gesture-guide { min-height: 13px; }
+            .gesture-guide span { display: inline; }
+            .gesture-guide span + span::before { content: " · "; }
         }
     </style>
 </head>
@@ -839,16 +857,21 @@
                         </div>
                         <button type="button" class="keyboard-button" id="keyboard-trigger">⌨︎ 打开实时键盘</button>
                     </div>
-                    <div class="gesture-guide">双指轻点右键 · 双指上下滚动 · 三指左右切换桌面 · 三/四指上滑可在设置中映射</div>
                 </div>
             </section>
         </main>
 
-        <nav class="bottom-nav" aria-label="主要功能">
-            <button type="button" class="nav-button active" data-view="pad"><span class="nav-icon">⌁</span><span class="nav-label">触控板</span></button>
-            <button type="button" class="nav-button" data-view="deck"><span class="nav-icon">◫</span><span class="nav-label">快捷台</span></button>
-            <button type="button" class="nav-button" data-view="text"><span class="nav-icon">⌨︎</span><span class="nav-label">文本</span></button>
-        </nav>
+        <footer class="bottom-shell">
+            <nav class="bottom-nav" aria-label="主要功能">
+                <button type="button" class="nav-button active" data-view="pad"><span class="nav-icon">⌁</span><span class="nav-label">触控板</span></button>
+                <button type="button" class="nav-button" data-view="deck"><span class="nav-icon">◫</span><span class="nav-label">快捷台</span></button>
+                <button type="button" class="nav-button" data-view="text"><span class="nav-icon">⌨︎</span><span class="nav-label">文本</span></button>
+            </nav>
+            <div class="gesture-guide" aria-label="手势提示">
+                <span>单指移动/点击 · 双指滚动/右键</span>
+                <span>三指左右切桌面 · 三/四指上滑调度/应用</span>
+            </div>
+        </footer>
 
         <input type="text" id="hidden-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
     </div>

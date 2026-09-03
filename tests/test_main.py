@@ -130,6 +130,12 @@ def test_frontend_is_not_cached(app_client: tuple[Any, ...]) -> None:
     assert '<dialog class="settings-dialog"' not in response.text
     assert 'id="settings-overlay" hidden' in response.text
     assert 'id="settings-close"' in response.text
+    text_view_end = response.text.index(
+        "</section>", response.text.index('id="text-view"')
+    )
+    guide_position = response.text.index('class="gesture-guide"')
+    nav_end = response.text.index("</nav>")
+    assert text_view_end < nav_end < guide_position
 
 
 def test_pwa_assets_are_served_with_safe_types(app_client: tuple[Any, ...]) -> None:

@@ -4,6 +4,7 @@ remote.log
 whitelist.json
 hud
 airmac-menubar
+audio-switcher
 .pytest_cache/
 authorized_devices.json
 *.lock

@@ -40,6 +40,8 @@ transport confidentiality; never describe it as safe for an untrusted network.
   unit test it.
 - `ui_components.js`: build-free native Web Components for the connection pill
   and Quick Deck. Keep deck messages fixed data, not user-provided commands.
+- `audio_switcher.m`: generated-binary-free Core Audio helper. It accepts only
+  `list` or `cycle`, and prints the selected output-device name to stdout.
 - `menubar.m`: native AppKit status item. It invokes `manage_devices.py` through
   argv; do not duplicate or directly mutate the credential format.
 - `manage_devices.py`: local CLI for list, revoke, clear, status, and diagnostics.
@@ -74,6 +76,9 @@ transport confidentiality; never describe it as safe for an untrusted network.
   a reviewed protocol change deliberately updates tests and documentation.
 - Never block the asyncio event loop with Quartz, clipboard, AppleScript, process,
   or keyboard work. Use the existing executors/async subprocess helpers.
+- Wi-Fi/Bluetooth/AirDrop shortcuts remain fixed `open` URLs. Audio switching
+  must invoke the bundled helper with the literal `cycle` argument; never accept
+  a device identifier or executable path from the phone.
 - Preserve bounded queues, pointer ordering, move/scroll coalescing, and stale
   pointer-event expiry.
 - Clipboard-dependent operations remain serialized. Long-text projection restores
@@ -137,6 +142,7 @@ transport confidentiality; never describe it as safe for an untrusted network.
    bash -n install_service.sh uninstall_service.sh tools/generate_pwa_icons.sh
    venv/bin/python -m pip check
    clang -fobjc-arc -framework Cocoa menubar.m -o /tmp/airmac-menubar-check
+   clang -fobjc-arc -framework Foundation -framework CoreAudio audio_switcher.m -o /tmp/airmac-audio-switcher-check
    git diff --check
    ```
 
@@ -161,5 +167,5 @@ transport confidentiality; never describe it as safe for an untrusted network.
 - Launcher log: `~/Library/Logs/AirMac/launcher.log`
 - Menu-bar log: `~/Library/Logs/AirMac/menubar.log`
 
-Never commit generated binaries (`hud`, `airmac-menubar`), virtual environments,
+Never commit generated binaries (`hud`, `airmac-menubar`, `audio-switcher`), virtual environments,
 local logs, device stores, lock files, or pairing credentials.

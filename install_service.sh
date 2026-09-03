@@ -18,6 +18,8 @@ RUNTIME_LOG_CONFIG="${DATA_DIR}/logging_config.json"
 DEVICE_STORE="${DATA_DIR}/authorized_devices.json"
 MENUBAR_SOURCE="${PROJECT_DIR}/menubar.m"
 MENUBAR_BINARY="${PROJECT_DIR}/airmac-menubar"
+AUDIO_SWITCHER_SOURCE="${PROJECT_DIR}/audio_switcher.m"
+AUDIO_SWITCHER_BINARY="${PROJECT_DIR}/audio-switcher"
 
 if [ -x "${PROJECT_DIR}/venv/bin/python" ]; then
     PYTHON_PATH="${PROJECT_DIR}/venv/bin/python"
@@ -61,6 +63,21 @@ if [ ! -x "${MENUBAR_BINARY}" ] || [ "${MENUBAR_SOURCE}" -nt "${MENUBAR_BINARY}"
         fi
     else
         echo "⚠️ 未找到 clang，无法构建菜单栏应用。"
+    fi
+fi
+
+if [ ! -x "${AUDIO_SWITCHER_BINARY}" ] || [ "${AUDIO_SWITCHER_SOURCE}" -nt "${AUDIO_SWITCHER_BINARY}" ]; then
+    if command -v clang >/dev/null 2>&1; then
+        echo "正在构建 AirMac 音频输出切换器..."
+        if clang -fobjc-arc -framework Foundation -framework CoreAudio \
+            "${AUDIO_SWITCHER_SOURCE}" -o "${AUDIO_SWITCHER_BINARY}.new"; then
+            mv "${AUDIO_SWITCHER_BINARY}.new" "${AUDIO_SWITCHER_BINARY}"
+        else
+            rm -f "${AUDIO_SWITCHER_BINARY}.new"
+            echo "⚠️ 音频输出切换器构建失败，其他远程控制功能仍可使用。"
+        fi
+    else
+        echo "⚠️ 未找到 clang，无法构建音频输出切换器。"
     fi
 fi
 

@@ -115,9 +115,16 @@ class PointerQueue:
 class MacController:
     """Serializes macOS input without blocking the ASGI event loop."""
 
-    def __init__(self, hud_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        hud_path: Path | None = None,
+        audio_switcher_path: Path | None = None,
+    ) -> None:
         self._keyboard: KeyboardController | None = None
         self.hud_path = hud_path or Path(__file__).with_name("hud")
+        self.audio_switcher_path = audio_switcher_path or Path(__file__).with_name(
+            "audio-switcher"
+        )
         self.pointer_queue = PointerQueue()
         self.control_queue: asyncio.Queue[QueuedAction] = asyncio.Queue(maxsize=128)
         self.pointer_executor = ThreadPoolExecutor(
@@ -296,6 +303,18 @@ class MacController:
                         )
                     except Exception:
                         logger.debug("Unable to report text projection failure")
+                elif isinstance(item.message, QuickAction):
+                    try:
+                        await item.notify(
+                            {
+                                "type": "action_result",
+                                "action": "quick_action",
+                                "command": item.message.command,
+                                "status": "error",
+                            }
+                        )
+                    except Exception:
+                        logger.debug("Unable to report quick action failure")
             finally:
                 self.current_control_task = None
                 self.control_queue.task_done()
@@ -406,6 +425,33 @@ class MacController:
             assert isinstance(message, QuickAction)
             if message.command == "screenshot":
                 await self._run_process("screencapture", "-c", "-x")
+            elif message.command == "open_wifi":
+                await self._run_process(
+                    "open",
+                    "x-apple.systempreferences:com.apple.wifi-settings-extension",
+                )
+            elif message.command == "open_bluetooth":
+                await self._run_process(
+                    "open",
+                    "x-apple.systempreferences:com.apple.BluetoothSettings",
+                )
+            elif message.command == "open_airdrop":
+                await self._run_process("open", "airdrop://")
+            elif message.command == "cycle_audio_output":
+                if not self.audio_switcher_path.is_file():
+                    raise RuntimeError("Audio switcher is not installed")
+                output_name = await self._run_process_output(
+                    str(self.audio_switcher_path), "cycle"
+                )
+                await item.notify(
+                    {
+                        "type": "action_result",
+                        "action": "quick_action",
+                        "command": "cycle_audio_output",
+                        "status": "ok",
+                        "output_name": output_name[:80],
+                    }
+                )
             else:
                 await loop.run_in_executor(
                     self.control_executor,
@@ -591,6 +637,31 @@ class MacController:
         except asyncio.CancelledError:
             await self._terminate_process(process)
             raise
+
+    async def _run_process_output(
+        self, *arguments: str, timeout: float = 5.0
+    ) -> str:
+        process = await asyncio.create_subprocess_exec(
+            *arguments,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout, _ = await asyncio.wait_for(process.communicate(), timeout=timeout)
+        except asyncio.TimeoutError as exc:
+            await self._terminate_process(process)
+            raise RuntimeError(
+                f"Process timed out after {timeout:.1f}s: {arguments[0]}"
+            ) from exc
+        except asyncio.CancelledError:
+            await self._terminate_process(process)
+            raise
+        if process.returncode != 0:
+            raise RuntimeError(f"Process failed with status {process.returncode}")
+        output = stdout.decode("utf-8", errors="replace").strip()
+        if not output:
+            raise RuntimeError("Process returned no output")
+        return output
 
     async def _wait_for_background_process(
         self, process: asyncio.subprocess.Process

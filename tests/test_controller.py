@@ -139,6 +139,112 @@ async def test_screenshot_quick_action_uses_parameterized_process(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        (
+            "open_wifi",
+            ("open", "x-apple.systempreferences:com.apple.wifi-settings-extension"),
+        ),
+        (
+            "open_bluetooth",
+            ("open", "x-apple.systempreferences:com.apple.BluetoothSettings"),
+        ),
+        ("open_airdrop", ("open", "airdrop://")),
+    ],
+)
+async def test_connection_shortcuts_use_fixed_urls(
+    command: str,
+    expected: tuple[str, ...],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    controller = MacController()
+    calls: list[tuple[str, ...]] = []
+
+    async def fake_run_process(*arguments: str, timeout: float = 5.0) -> None:
+        calls.append(arguments)
+
+    monkeypatch.setattr(controller, "_run_process", fake_run_process)
+    message = parse_action_message(
+        json.dumps({"action": "quick_action", "command": command})
+    )
+    await controller._execute_control(QueuedAction(message, 1, noop_notify))
+
+    assert calls == [expected]
+
+
+@pytest.mark.asyncio
+async def test_audio_output_shortcut_reports_selected_device(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audio_switcher = tmp_path / "audio-switcher"
+    audio_switcher.touch()
+    controller = MacController(audio_switcher_path=audio_switcher)
+    calls: list[tuple[str, ...]] = []
+    notifications: list[dict[str, object]] = []
+
+    async def fake_run_process_output(
+        *arguments: str, timeout: float = 5.0
+    ) -> str:
+        calls.append(arguments)
+        return "Living Room Speakers"
+
+    async def notify(payload: dict[str, object]) -> None:
+        notifications.append(payload)
+
+    monkeypatch.setattr(controller, "_run_process_output", fake_run_process_output)
+    message = parse_action_message(
+        json.dumps({"action": "quick_action", "command": "cycle_audio_output"})
+    )
+    await controller._execute_control(QueuedAction(message, 1, notify))
+
+    assert calls == [(str(audio_switcher), "cycle")]
+    assert notifications == [
+        {
+            "type": "action_result",
+            "action": "quick_action",
+            "command": "cycle_audio_output",
+            "status": "ok",
+            "output_name": "Living Room Speakers",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_missing_audio_switcher_reports_quick_action_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    controller = MacController(audio_switcher_path=tmp_path / "missing")
+    notifications: list[dict[str, object]] = []
+
+    async def notify(payload: dict[str, object]) -> None:
+        notifications.append(payload)
+
+    monkeypatch.setattr(controller, "_release_pointer", lambda: None)
+    monkeypatch.setattr(controller, "_release_modifiers", lambda: None)
+    await controller.start()
+    try:
+        message = parse_action_message(
+            json.dumps({"action": "quick_action", "command": "cycle_audio_output"})
+        )
+        assert await controller.dispatch(message, notify)
+        await asyncio.wait_for(controller.control_queue.join(), timeout=1)
+    finally:
+        await controller.stop()
+
+    assert notifications == [
+        {
+            "type": "action_result",
+            "action": "quick_action",
+            "command": "cycle_audio_output",
+            "status": "error",
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_control_worker_serializes_clipboard_actions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

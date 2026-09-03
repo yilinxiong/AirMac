@@ -95,9 +95,7 @@ class QuickAction(ActionBase):
         "brightness_up",
         "screenshot",
         "lock_screen",
-        "open_wifi",
-        "open_bluetooth",
-        "open_airdrop",
+        "open_control_center",
         "cycle_audio_output",
     ]
 

@@ -99,7 +99,7 @@ async def test_app_launcher_prefers_modern_macos_apps(
     assert calls == [("open", str(apps_path))]
 
 
-def test_quick_action_uses_fixed_window_shortcuts(
+def test_quick_action_uses_fixed_quartz_shortcuts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     controller = MacController()
@@ -112,10 +112,15 @@ def test_quick_action_uses_fixed_window_shortcuts(
 
     controller._execute_quick_action("window_left")
     controller._execute_quick_action("window_fill")
+    controller._execute_quick_action("open_control_center")
 
     assert calls == [
         (123, mac_controller.WINDOW_SHORTCUT_FLAGS),
         (3, mac_controller.WINDOW_SHORTCUT_FLAGS),
+        (
+            mac_controller.CONTROL_CENTER_KEY_CODE,
+            mac_controller.CONTROL_CENTER_FLAGS,
+        ),
     ]
 
 
@@ -136,68 +141,6 @@ async def test_screenshot_quick_action_uses_parameterized_process(
     await controller._execute_control(QueuedAction(message, 1, noop_notify))
 
     assert calls == [("screencapture", "-c", "-x")]
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("command", "expected"),
-    [
-        ("open_wifi", "wifi"),
-        ("open_bluetooth", "bluetooth"),
-        ("open_airdrop", "airdrop"),
-    ],
-)
-async def test_connection_shortcuts_use_fixed_control_center_script(
-    command: str,
-    expected: str,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    controller = MacController()
-    calls: list[tuple[str, ...]] = []
-    key_events: list[tuple[int, int]] = []
-    notifications: list[dict[str, object]] = []
-
-    async def fake_run_process_output(
-        *arguments: str, timeout: float = 5.0
-    ) -> str:
-        calls.append(arguments)
-        return "opened"
-
-    async def notify(payload: dict[str, object]) -> None:
-        notifications.append(payload)
-
-    monkeypatch.setattr(controller, "_run_process_output", fake_run_process_output)
-    monkeypatch.setattr(
-        controller,
-        "_post_key_code",
-        lambda key_code, flags: key_events.append((key_code, flags)),
-    )
-    message = parse_action_message(
-        json.dumps({"action": "quick_action", "command": command})
-    )
-    await controller._execute_control(QueuedAction(message, 1, notify))
-
-    assert key_events == [
-        (
-            mac_controller.CONTROL_CENTER_KEY_CODE,
-            mac_controller.CONTROL_CENTER_FLAGS,
-        )
-    ]
-    assert calls == [
-        (
-            "osascript",
-            str(mac_controller.CONTROL_CENTER_SCRIPT_PATH),
-            expected,
-        )
-    ]
-    assert notifications == [
-        {
-            "type": "action_result",
-            "action": "quick_action",
-            "command": command,
-            "status": "ok",
-        }
-    ]
 
 
 @pytest.mark.asyncio

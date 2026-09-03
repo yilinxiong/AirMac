@@ -17,14 +17,7 @@
         {
             title: '快捷菜单',
             actions: [
-                { label: 'Wi-Fi', icon: '⌁', message: { action: 'quick_action', command: 'open_wifi' } },
-                { label: '蓝牙', icon: 'ᛒ', message: { action: 'quick_action', command: 'open_bluetooth' } },
-                { label: 'AirDrop', icon: '◉', message: { action: 'quick_action', command: 'open_airdrop' } },
-            ],
-        },
-        {
-            title: '空间与媒体',
-            actions: [
+                { label: '控制中心', icon: '◩', message: { action: 'quick_action', command: 'open_control_center' }, tone: 'accent' },
                 { label: 'Apps', icon: '◫', message: { action: 'app_launcher' } },
                 { label: '调度中心', icon: '◇', message: { action: 'mission_control' } },
                 { label: '播放 / 暂停', icon: '▶︎', message: { action: 'media', command: 'playpause' } },

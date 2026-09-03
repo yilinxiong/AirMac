@@ -19,12 +19,6 @@ from protocol import ActionMessage, MoveAction, QuickAction, ScrollAction, TypeT
 logger = logging.getLogger("AirMac.controller")
 NotifyCallback = Callable[[dict[str, object]], Awaitable[None]]
 APPS_APPLICATION_PATH = Path("/System/Applications/Apps.app")
-CONTROL_CENTER_SCRIPT_PATH = Path(__file__).with_name("control_center.applescript")
-CONTROL_CENTER_TARGETS = {
-    "open_wifi": "wifi",
-    "open_bluetooth": "bluetooth",
-    "open_airdrop": "airdrop",
-}
 CONTROL_CENTER_KEY_CODE = 8
 CONTROL_CENTER_FLAGS = Quartz.kCGEventFlagMaskSecondaryFn
 WINDOW_SHORTCUT_FLAGS = (
@@ -433,26 +427,6 @@ class MacController:
             assert isinstance(message, QuickAction)
             if message.command == "screenshot":
                 await self._run_process("screencapture", "-c", "-x")
-            elif message.command in CONTROL_CENTER_TARGETS:
-                await loop.run_in_executor(
-                    self.control_executor,
-                    self._post_key_code,
-                    CONTROL_CENTER_KEY_CODE,
-                    CONTROL_CENTER_FLAGS,
-                )
-                await self._run_process_output(
-                    "osascript",
-                    str(CONTROL_CENTER_SCRIPT_PATH),
-                    CONTROL_CENTER_TARGETS[message.command],
-                )
-                await item.notify(
-                    {
-                        "type": "action_result",
-                        "action": "quick_action",
-                        "command": message.command,
-                        "status": "ok",
-                    }
-                )
             elif message.command == "cycle_audio_output":
                 if not self.audio_switcher_path.is_file():
                     raise RuntimeError("Audio switcher is not installed")
@@ -746,6 +720,8 @@ class MacController:
                 12,
                 Quartz.kCGEventFlagMaskControl | Quartz.kCGEventFlagMaskCommand,
             )
+        elif command == "open_control_center":
+            self._post_key_code(CONTROL_CENTER_KEY_CODE, CONTROL_CENTER_FLAGS)
 
     def _post_key_code(self, key_code: int, flags: int) -> None:
         for is_down in (True, False):

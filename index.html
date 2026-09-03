@@ -908,7 +908,7 @@
     </div>
 
     <script src="/frontend_state.js?v=3"></script>
-    <script src="/ui_components.js?v=5"></script>
+    <script src="/ui_components.js?v=6"></script>
     <script>
         // Progressive Web App support. Service workers require a secure context;
         // plain LAN HTTP continues to work without one.
@@ -1343,16 +1343,6 @@
                         } else {
                             showGestureFeedback('无法切换扬声器');
                         }
-                    } else if (data.type === 'action_result' && data.action === 'quick_action'
-                            && ['open_wifi', 'open_bluetooth', 'open_airdrop'].includes(data.command)) {
-                        const names = {
-                            open_wifi: 'Wi-Fi',
-                            open_bluetooth: '蓝牙',
-                            open_airdrop: 'AirDrop',
-                        };
-                        showGestureFeedback(data.status === 'ok'
-                            ? `已打开 ${names[data.command]} 快捷菜单`
-                            : `无法打开 ${names[data.command]} 快捷菜单`);
                     }
                 } catch (e) {
                     console.error("Error parsing message:", e);

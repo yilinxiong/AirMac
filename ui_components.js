@@ -7,6 +7,22 @@
 
     const DECK_GROUPS = Object.freeze([
         {
+            title: '电源与登录',
+            actions: [
+                { label: '唤醒', icon: '☀', message: { action: 'wake_watch' }, tone: 'accent' },
+                { label: '锁定 Mac', icon: '⌾', message: { action: 'quick_action', command: 'lock_screen' }, tone: 'danger' },
+                { label: '显示器睡眠', icon: '☾', message: { action: 'display_sleep' } },
+            ],
+        },
+        {
+            title: '快捷菜单',
+            actions: [
+                { label: 'Wi-Fi', icon: '⌁', message: { action: 'quick_action', command: 'open_wifi' } },
+                { label: '蓝牙', icon: 'ᛒ', message: { action: 'quick_action', command: 'open_bluetooth' } },
+                { label: 'AirDrop', icon: '◉', message: { action: 'quick_action', command: 'open_airdrop' } },
+            ],
+        },
+        {
             title: '空间与媒体',
             actions: [
                 { label: 'Apps', icon: '◫', message: { action: 'app_launcher' } },
@@ -16,40 +32,24 @@
             ],
         },
         {
-            title: '窗口',
-            actions: [
-                { label: '左半屏', icon: '◧', message: { action: 'quick_action', command: 'window_left' } },
-                { label: '填充', icon: '▣', message: { action: 'quick_action', command: 'window_fill' } },
-                { label: '右半屏', icon: '◨', message: { action: 'quick_action', command: 'window_right' } },
-                { label: '居中', icon: '▢', message: { action: 'quick_action', command: 'window_center' } },
-            ],
-        },
-        {
             title: '声音与显示',
             actions: [
                 { label: '音量减', icon: '▾', message: { action: 'quick_action', command: 'volume_down' } },
                 { label: '静音', icon: '◌', message: { action: 'quick_action', command: 'volume_mute' } },
                 { label: '音量加', icon: '▴', message: { action: 'quick_action', command: 'volume_up' } },
+                { label: '切换扬声器', icon: '◖', message: { action: 'quick_action', command: 'cycle_audio_output' }, tone: 'accent' },
                 { label: '亮度减', icon: '☼', message: { action: 'quick_action', command: 'brightness_down' } },
                 { label: '亮度加', icon: '☀︎', message: { action: 'quick_action', command: 'brightness_up' } },
                 { label: '截屏到剪贴板', icon: '⌗', message: { action: 'quick_action', command: 'screenshot' } },
             ],
         },
         {
-            title: '连接',
+            title: '窗口',
             actions: [
-                { label: 'Wi-Fi', icon: '⌁', message: { action: 'quick_action', command: 'open_wifi' } },
-                { label: '蓝牙', icon: 'ᛒ', message: { action: 'quick_action', command: 'open_bluetooth' } },
-                { label: 'AirDrop', icon: '◉', message: { action: 'quick_action', command: 'open_airdrop' } },
-                { label: '切换扬声器', icon: '◖', message: { action: 'quick_action', command: 'cycle_audio_output' }, tone: 'accent' },
-            ],
-        },
-        {
-            title: '电源',
-            actions: [
-                { label: '唤醒', icon: '☀', message: { action: 'wake_watch' }, tone: 'accent' },
-                { label: '显示器睡眠', icon: '☾', message: { action: 'display_sleep' } },
-                { label: '锁定 Mac', icon: '⌾', message: { action: 'quick_action', command: 'lock_screen' }, tone: 'danger' },
+                { label: '左半屏', icon: '◧', message: { action: 'quick_action', command: 'window_left' } },
+                { label: '填充', icon: '▣', message: { action: 'quick_action', command: 'window_fill' } },
+                { label: '右半屏', icon: '◨', message: { action: 'quick_action', command: 'window_right' } },
+                { label: '居中', icon: '▢', message: { action: 'quick_action', command: 'window_center' } },
             ],
         },
     ]);

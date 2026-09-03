@@ -1,4 +1,4 @@
-const CACHE_NAME = 'airmac-shell-v4';
+const CACHE_NAME = 'airmac-shell-v5';
 const OFFLINE_URL = '/offline.html';
 const SHELL_ASSETS = [
     OFFLINE_URL,

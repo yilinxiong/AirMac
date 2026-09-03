@@ -19,6 +19,12 @@ from protocol import ActionMessage, MoveAction, QuickAction, ScrollAction, TypeT
 logger = logging.getLogger("AirMac.controller")
 NotifyCallback = Callable[[dict[str, object]], Awaitable[None]]
 APPS_APPLICATION_PATH = Path("/System/Applications/Apps.app")
+CONTROL_CENTER_SCRIPT_PATH = Path(__file__).with_name("control_center.applescript")
+CONTROL_CENTER_TARGETS = {
+    "open_wifi": "wifi",
+    "open_bluetooth": "bluetooth",
+    "open_airdrop": "airdrop",
+}
 WINDOW_SHORTCUT_FLAGS = (
     Quartz.kCGEventFlagMaskSecondaryFn | Quartz.kCGEventFlagMaskControl
 )
@@ -425,18 +431,20 @@ class MacController:
             assert isinstance(message, QuickAction)
             if message.command == "screenshot":
                 await self._run_process("screencapture", "-c", "-x")
-            elif message.command == "open_wifi":
-                await self._run_process(
-                    "open",
-                    "x-apple.systempreferences:com.apple.wifi-settings-extension",
+            elif message.command in CONTROL_CENTER_TARGETS:
+                await self._run_process_output(
+                    "osascript",
+                    str(CONTROL_CENTER_SCRIPT_PATH),
+                    CONTROL_CENTER_TARGETS[message.command],
                 )
-            elif message.command == "open_bluetooth":
-                await self._run_process(
-                    "open",
-                    "x-apple.systempreferences:com.apple.BluetoothSettings",
+                await item.notify(
+                    {
+                        "type": "action_result",
+                        "action": "quick_action",
+                        "command": message.command,
+                        "status": "ok",
+                    }
                 )
-            elif message.command == "open_airdrop":
-                await self._run_process("open", "airdrop://")
             elif message.command == "cycle_audio_output":
                 if not self.audio_switcher_path.is_file():
                     raise RuntimeError("Audio switcher is not installed")
@@ -637,6 +645,8 @@ class MacController:
         except asyncio.CancelledError:
             await self._terminate_process(process)
             raise
+        if process.returncode != 0:
+            raise RuntimeError(f"Process failed with status {process.returncode}")
 
     async def _run_process_output(
         self, *arguments: str, timeout: float = 5.0

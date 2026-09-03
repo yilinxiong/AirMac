@@ -142,35 +142,50 @@ async def test_screenshot_quick_action_uses_parameterized_process(
 @pytest.mark.parametrize(
     ("command", "expected"),
     [
-        (
-            "open_wifi",
-            ("open", "x-apple.systempreferences:com.apple.wifi-settings-extension"),
-        ),
-        (
-            "open_bluetooth",
-            ("open", "x-apple.systempreferences:com.apple.BluetoothSettings"),
-        ),
-        ("open_airdrop", ("open", "airdrop://")),
+        ("open_wifi", "wifi"),
+        ("open_bluetooth", "bluetooth"),
+        ("open_airdrop", "airdrop"),
     ],
 )
-async def test_connection_shortcuts_use_fixed_urls(
+async def test_connection_shortcuts_use_fixed_control_center_script(
     command: str,
-    expected: tuple[str, ...],
+    expected: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     controller = MacController()
     calls: list[tuple[str, ...]] = []
+    notifications: list[dict[str, object]] = []
 
-    async def fake_run_process(*arguments: str, timeout: float = 5.0) -> None:
+    async def fake_run_process_output(
+        *arguments: str, timeout: float = 5.0
+    ) -> str:
         calls.append(arguments)
+        return "opened"
 
-    monkeypatch.setattr(controller, "_run_process", fake_run_process)
+    async def notify(payload: dict[str, object]) -> None:
+        notifications.append(payload)
+
+    monkeypatch.setattr(controller, "_run_process_output", fake_run_process_output)
     message = parse_action_message(
         json.dumps({"action": "quick_action", "command": command})
     )
-    await controller._execute_control(QueuedAction(message, 1, noop_notify))
+    await controller._execute_control(QueuedAction(message, 1, notify))
 
-    assert calls == [expected]
+    assert calls == [
+        (
+            "osascript",
+            str(mac_controller.CONTROL_CENTER_SCRIPT_PATH),
+            expected,
+        )
+    ]
+    assert notifications == [
+        {
+            "type": "action_result",
+            "action": "quick_action",
+            "command": command,
+            "status": "ok",
+        }
+    ]
 
 
 @pytest.mark.asyncio
@@ -434,6 +449,23 @@ async def test_subprocess_timeout_terminates_child(
     with pytest.raises(RuntimeError, match="timed out"):
         await controller._run_process("osascript", timeout=0.01)
     assert process.terminated
+
+
+@pytest.mark.asyncio
+async def test_subprocess_nonzero_status_is_reported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    controller = MacController()
+    process = FakeProcess()
+    process.returncode = 1
+    process.finished.set()
+
+    async def fake_create_subprocess_exec(*_: object, **__: object) -> FakeProcess:
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
+    with pytest.raises(RuntimeError, match="status 1"):
+        await controller._run_process("osascript")
 
 
 @pytest.mark.asyncio

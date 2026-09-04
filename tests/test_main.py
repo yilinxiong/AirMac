@@ -206,6 +206,56 @@ def test_authenticated_websocket_dispatches_valid_actions(
     assert controller.auto_wake_checks == 1
 
 
+def test_v2_authentication_negotiates_protocol_metadata(
+    app_client: tuple[Any, ...]
+) -> None:
+    client, store, _ = app_client
+    device_id, token = store.issue_device("V2 Phone")
+    with authenticate_socket(client, device_id, token) as websocket:
+        websocket.send_json(
+            {
+                "type": "authenticate",
+                "device_id": device_id,
+                "token": token,
+                "protocol_version": 2,
+                "client_version": "0.3.0-web",
+            }
+        )
+        response = websocket.receive_json()
+        assert response["type"] == "auth_ok"
+        assert response["protocol_version"] == 2
+        assert response["server_version"] == "0.3.0"
+        assert response["session_id"]
+        assert response["heartbeat_interval_ms"] == 5_000
+        assert response["limits"]["message_bytes"] == 65_536
+        assert "typed_server_messages" in response["capabilities"]
+
+
+def test_unsupported_protocol_is_rejected_before_control_claim(
+    app_client: tuple[Any, ...]
+) -> None:
+    client, store, controller = app_client
+    device_id, token = store.issue_device("Future Phone")
+    with authenticate_socket(client, device_id, token) as websocket:
+        websocket.send_json(
+            {
+                "type": "authenticate",
+                "device_id": device_id,
+                "token": token,
+                "protocol_version": 99,
+            }
+        )
+        assert websocket.receive_json() == {
+            "type": "error",
+            "code": "unsupported_protocol",
+        }
+        with pytest.raises(WebSocketDisconnect) as closed:
+            websocket.receive_json()
+        assert closed.value.code == 4011
+    assert controller.actions == []
+    assert controller.auto_wake_checks == 0
+
+
 def test_default_controller_is_used_for_auto_wake(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

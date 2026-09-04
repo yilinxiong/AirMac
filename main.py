@@ -20,6 +20,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from starlette.websockets import WebSocketDisconnect
 
+from airmac_version import AIRMAC_VERSION
 from auth import (
     DeviceStore,
     PairingBusy,
@@ -29,7 +30,22 @@ from auth import (
     PairingRateLimited,
 )
 from mac_controller import MacController
-from protocol import TypeTextAction, parse_action_message, parse_auth_message
+from protocol import (
+    HEARTBEAT_INTERVAL_MS,
+    PROTOCOL_VERSION,
+    SUPPORTED_PROTOCOL_VERSIONS,
+    AuthFailedMessage,
+    AuthOkMessage,
+    ErrorMessage,
+    HeartbeatAckMessage,
+    ProtocolLimits,
+    ServerMessage,
+    TypeTextAction,
+    TypeTextResultMessage,
+    encode_server_message,
+    parse_action_message,
+    parse_auth_message,
+)
 
 
 logging.basicConfig(
@@ -51,6 +67,12 @@ SESSION_IDLE_TIMEOUT_SECONDS = 16.0
 SESSION_MONITOR_INTERVAL_SECONDS = 1.0
 METRICS_LOG_INTERVAL_SECONDS = 30.0
 EVENT_LOOP_LAG_WARNING_SECONDS = 0.1
+SERVER_CAPABILITIES = [
+    "typed_server_messages",
+    "text_projection",
+    "quick_deck",
+    "audio_switching",
+]
 ALLOWED_NETWORKS = tuple(
     ipaddress.ip_network(network)
     for network in (
@@ -463,7 +485,7 @@ def create_app(
         await websocket.accept()
         if websocket.query_params.get("device_id"):
             logger.info("Rejected legacy WebSocket identity from %s", client.host)
-            await websocket.send_json({"type": "auth_failed"})
+            await websocket.send_json(encode_server_message(AuthFailedMessage()))
             await websocket.close(code=4003, reason="legacy_identity_not_supported")
             return
         claimed = False
@@ -473,6 +495,17 @@ def create_app(
                 websocket.receive_text(), timeout=AUTH_TIMEOUT_SECONDS
             )
             auth_message = parse_auth_message(raw_auth)
+            if auth_message.protocol_version not in SUPPORTED_PROTOCOL_VERSIONS:
+                logger.info(
+                    "Unsupported protocol client=%s version=%s",
+                    client.host,
+                    auth_message.protocol_version,
+                )
+                await websocket.send_json(
+                    encode_server_message(ErrorMessage(code="unsupported_protocol"))
+                )
+                await websocket.close(code=4011, reason="unsupported_protocol")
+                return
             try:
                 authenticated = await asyncio.to_thread(
                     device_store.authenticate,
@@ -489,7 +522,7 @@ def create_app(
                     client.host,
                     auth_message.device_id,
                 )
-                await websocket.send_json({"type": "auth_failed"})
+                await websocket.send_json(encode_server_message(AuthFailedMessage()))
                 await websocket.close(code=4003, reason="authentication_failed")
                 return
 
@@ -501,7 +534,7 @@ def create_app(
                     auth_message.device_id,
                 )
                 await websocket.send_json(
-                    {"type": "error", "code": "controller_busy"}
+                    encode_server_message(ErrorMessage(code="controller_busy"))
                 )
                 await websocket.close(code=4009, reason="controller_busy")
                 return
@@ -512,7 +545,17 @@ def create_app(
                 logger.exception(
                     "Unable to update last_seen device=%s", session.device_id
                 )
-            await websocket.send_json({"type": "auth_ok"})
+            auth_ok = AuthOkMessage()
+            if auth_message.protocol_version >= PROTOCOL_VERSION:
+                auth_ok = AuthOkMessage(
+                    protocol_version=PROTOCOL_VERSION,
+                    server_version=AIRMAC_VERSION,
+                    session_id=session.session_id,
+                    capabilities=SERVER_CAPABILITIES,
+                    heartbeat_interval_ms=HEARTBEAT_INTERVAL_MS,
+                    limits=ProtocolLimits(),
+                )
+            await websocket.send_json(encode_server_message(auth_ok))
             logger.info(
                 "WebSocket connected session=%s client=%s device=%s",
                 session.session_id,
@@ -528,18 +571,19 @@ def create_app(
                     session.device_id,
                 )
 
-            async def notify(payload: dict[str, object]) -> None:
+            async def notify(payload: ServerMessage | dict[str, object]) -> None:
+                encoded = encode_server_message(payload)
                 if (
-                    payload.get("type") == "action_result"
-                    and payload.get("action") == "type_text"
-                    and isinstance(payload.get("request_id"), str)
+                    encoded.get("type") == "action_result"
+                    and encoded.get("action") == "type_text"
+                    and isinstance(encoded.get("request_id"), str)
                 ):
-                    request_id = str(payload["request_id"])
-                    if payload.get("status") == "ok":
+                    request_id = str(encoded["request_id"])
+                    if encoded.get("status") == "ok":
                         await sessions.record_projection(
                             session.device_id, request_id
                         )
-                    elif payload.get("status") == "error":
+                    elif encoded.get("status") == "error":
                         try:
                             session.projection_ids.remove(request_id)
                         except ValueError:
@@ -548,7 +592,7 @@ def create_app(
                 if active is not session:
                     return
                 async with session.send_lock:
-                    await websocket.send_json(payload)
+                    await websocket.send_json(encoded)
 
             while True:
                 raw_message = await websocket.receive_text()
@@ -563,13 +607,13 @@ def create_app(
                         session.device_id,
                         len(raw_message.encode("utf-8")),
                     )
-                    await notify({"type": "error", "code": "invalid_message"})
+                    await notify(ErrorMessage(code="invalid_message"))
                     continue
                 if await sessions.snapshot() is not session:
                     await websocket.close(code=4010, reason="replaced")
                     return
                 if action.action == "heartbeat":
-                    await notify({"type": "heartbeat_ack"})
+                    await notify(HeartbeatAckMessage())
                     continue
                 if isinstance(action, TypeTextAction):
                     if (
@@ -579,12 +623,10 @@ def create_app(
                         )
                     ):
                         await notify(
-                            {
-                                "type": "action_result",
-                                "action": "type_text",
-                                "request_id": action.request_id,
-                                "status": "duplicate",
-                            }
+                            TypeTextResultMessage(
+                                request_id=action.request_id,
+                                status="duplicate",
+                            )
                         )
                         continue
                     session.projection_ids.append(action.request_id)
@@ -601,21 +643,19 @@ def create_app(
                         except ValueError:
                             pass
                         await notify(
-                            {
-                                "type": "action_result",
-                                "action": "type_text",
-                                "request_id": action.request_id,
-                                "status": "error",
-                                "code": "queue_full",
-                            }
+                            TypeTextResultMessage(
+                                request_id=action.request_id,
+                                status="error",
+                                code="queue_full",
+                            )
                         )
                     else:
-                        await notify({"type": "error", "code": "queue_full"})
+                        await notify(ErrorMessage(code="queue_full"))
         except asyncio.TimeoutError:
             logger.warning("WebSocket authentication timeout client=%s", client.host)
             await websocket.close(code=4008, reason="authentication_timeout")
         except (json.JSONDecodeError, ValidationError, ValueError):
-            await websocket.send_json({"type": "auth_failed"})
+            await websocket.send_json(encode_server_message(AuthFailedMessage()))
             await websocket.close(code=4003, reason="authentication_failed")
         except WebSocketDisconnect as exc:
             logger.info(

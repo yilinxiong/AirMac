@@ -132,10 +132,10 @@
                     :host { display: block; min-height: 0; color: white; }
                     section + section { margin-top: 20px; }
                     h2 { margin: 0 0 9px 3px; color: rgba(255,255,255,.43); font: 600 11px/1.2 -apple-system, sans-serif; letter-spacing: .09em; text-transform: uppercase; }
-                    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 15px 8px; }
+                    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px 8px; }
                     button {
-                        min-width: 0; min-height: 82px; padding: 0 1px;
-                        display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 7px;
+                        min-width: 0; min-height: 90px; padding: 0 1px;
+                        display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 8px;
                         border: 0; border-radius: 18px;
                         background: transparent; color: rgba(255,255,255,.82);
                         box-shadow: none; font: 500 10.5px/1.12 -apple-system, BlinkMacSystemFont, sans-serif;
@@ -145,15 +145,15 @@
                     button:active { transform: scale(.96); }
                     button:active .icon { background: rgba(255,255,255,.14); transform: scale(.96); }
                     .icon {
-                        width: 60px; height: 60px; flex: 0 0 60px;
+                        width: 66px; height: 66px; flex: 0 0 66px;
                         display: grid; place-items: center; box-sizing: border-box;
-                        border: 1px solid rgba(255,255,255,.095); border-radius: 13.5px;
+                        border: 1px solid rgba(255,255,255,.095); border-radius: 15px;
                         background: linear-gradient(155deg, rgba(255,255,255,.105), rgba(255,255,255,.055));
                         box-shadow: 0 5px 14px rgba(0,0,0,.14), inset 0 1px 0 rgba(255,255,255,.075);
                         color: var(--symbol-color, rgba(255,255,255,.9));
                         transition: transform .12s ease, background .12s ease;
                     }
-                    .icon svg { width: 27px; height: 27px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+                    .icon svg { width: 30px; height: 30px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
                     .label { min-height: 12px; text-align: center; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
                     button[data-theme="sunrise"] { --symbol-color: #f5c451; }
                     button[data-theme="lock"], button[data-theme="close"] { --symbol-color: #ff6961; }

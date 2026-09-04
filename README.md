@@ -4,7 +4,7 @@
   <img src="icon.png" width="150" alt="AirMac Icon">
 </p>
 
-[English](#english) | [中文说明](#中文说明)
+[English](#english) | [中文说明](#中文说明) | [Screenshots](#screenshots--截图)
 
 AirMac turns an iPhone into a low-latency trackpad and keyboard for a Mac on the same trusted local network. It uses a FastAPI/WebSocket server and macOS Quartz input events.
 
@@ -14,15 +14,11 @@ AirMac never stores or transmits the Mac login password and does not attempt to
 turn iPhone Touch ID or Face ID into a macOS login credential. Apple exposes Mac
 Auto Unlock through Apple Watch, not through an iPhone web app.
 
-## GitHub publishing status
+## GitHub Publishing Status
 
-The repository is intended to be publishable: local logs, pairing databases,
-legacy whitelists, virtual environments, and generated helper binaries are kept
-out of Git. Before making the GitHub repository public, choose and add a
-`LICENSE` file. Without an explicit license, other people can read the code but
-do not receive clear permission to use, modify, or redistribute it. MIT is a
-simple fit for a personal utility; Apache-2.0 is another common option if you
-prefer an explicit patent grant.
+The repository is ready to publish as an MIT-licensed open-source project. Local
+logs, pairing databases, legacy whitelists, virtual environments, and generated
+helper binaries are kept out of Git.
 
 Recommended pre-publish check:
 
@@ -34,6 +30,26 @@ pytest -q
 node --test tests/frontend_state.test.js tests/ui_components.test.js
 bash -n install_service.sh uninstall_service.sh tools/generate_pwa_icons.sh
 ```
+
+## Screenshots / 截图
+
+Chinese interface:
+
+<p>
+  <img src="images/IMG_5641.PNG" width="180" alt="AirMac Chinese trackpad view">
+  <img src="images/IMG_5642.PNG" width="180" alt="AirMac Chinese quick deck view">
+  <img src="images/IMG_5643.PNG" width="180" alt="AirMac Chinese text input view">
+  <img src="images/IMG_5644.PNG" width="180" alt="AirMac Chinese controls settings view">
+</p>
+
+English interface:
+
+<p>
+  <img src="images/IMG_5645.PNG" width="180" alt="AirMac English trackpad view">
+  <img src="images/IMG_5646.PNG" width="180" alt="AirMac English quick deck view">
+  <img src="images/IMG_5647.PNG" width="180" alt="AirMac English text input view">
+  <img src="images/IMG_5648.PNG" width="180" alt="AirMac English controls settings view">
+</p>
 
 ## English
 
@@ -300,10 +316,8 @@ iPhone 锁屏或页面进入后台时会主动暂停 WebSocket；回到 AirMac �
 
 ### GitHub 发布前确认
 
-当前仓库已经适合整理后公开：本地日志、配对数据库、旧白名单、虚拟环境和生成的辅助
-二进制都不会被 Git 跟踪。正式公开前还需要选择并添加 `LICENSE` 文件；如果没有明确
-license，别人虽然能看到代码，但没有清晰的使用、修改和再发布许可。个人工具通常可选
-MIT；如果你希望包含明确专利授权，也可以选 Apache-2.0。
+当前仓库已经可以按 MIT License 公开发布。本地日志、配对数据库、旧白名单、虚拟环境
+和生成的辅助二进制都不会被 Git 跟踪。
 
 ### 管理设备
 
@@ -347,9 +361,9 @@ launchctl print "gui/$(id -u)/com.airmac.remote"
 | `auth.py` | Pairing challenges and atomic token-digest device storage |
 | `protocol.py` | Strict, size-bounded Pydantic message models |
 | `mac_controller.py` | Ordered input queues, Quartz events, clipboard and macOS commands |
-| `index.html` | Mobile UI, connection lifecycle and touch gesture dispatch |
+| `index.html` | Mobile UI, bilingual strings, connection lifecycle and touch gesture dispatch |
 | `frontend_state.js` | Testable reconnect, projection, gesture, settings and latency state |
-| `ui_components.js` | Native Web Components for connection status and the fixed Quick Deck |
+| `ui_components.js` | Native Web Components for connection status and the bilingual fixed Quick Deck |
 | `audio_switcher.m` | Core Audio helper that safely lists and cycles output devices |
 | `menubar.m` | Native AppKit menu-bar manager |
 | `install_service.sh` | Build and install the server/menu-bar LaunchAgents |
@@ -359,3 +373,7 @@ launchctl print "gui/$(id -u)/com.airmac.remote"
 Before making automated changes, read [`AGENTS.md`](AGENTS.md). It records the
 security and lifecycle invariants that future contributors and coding agents must
 preserve.
+
+## License
+
+AirMac is released under the [MIT License](LICENSE).

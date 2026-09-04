@@ -172,8 +172,10 @@ transport confidentiality; never describe it as safe for an untrusted network.
 - Keep the tracked repository free of local state: no logs, virtual environments,
   generated helper binaries, pairing databases, lock files, or legacy
   `whitelist.json` content.
-- Do not add a `LICENSE` file without an explicit user choice. Before publishing
-  as open source, call out that a missing license leaves reuse rights unclear.
+- AirMac is MIT licensed. Keep `LICENSE` in sync with the README license section.
+- Screenshots under `images/` are intentional public README assets. Before adding
+  new screenshots, visually check that they do not show private hostnames, tokens,
+  IP addresses, personal notifications, or other sensitive local state.
 - Keep GitHub Actions aligned with the local check list, including Python tests,
   both Node frontend tests, shell syntax checks, and macOS native helper builds.
 - When making UI experiments, prefer small commits and tags such as

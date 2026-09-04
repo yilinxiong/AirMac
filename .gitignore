@@ -1,5 +1,12 @@
 venv/
 __pycache__/
+.DS_Store
+.coverage
+htmlcov/
+*.log
+*.log.*
+*.dSYM/
+*.new
 remote.log
 whitelist.json
 hud

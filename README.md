@@ -14,6 +14,27 @@ AirMac never stores or transmits the Mac login password and does not attempt to
 turn iPhone Touch ID or Face ID into a macOS login credential. Apple exposes Mac
 Auto Unlock through Apple Watch, not through an iPhone web app.
 
+## GitHub publishing status
+
+The repository is intended to be publishable: local logs, pairing databases,
+legacy whitelists, virtual environments, and generated helper binaries are kept
+out of Git. Before making the GitHub repository public, choose and add a
+`LICENSE` file. Without an explicit license, other people can read the code but
+do not receive clear permission to use, modify, or redistribute it. MIT is a
+simple fit for a personal utility; Apache-2.0 is another common option if you
+prefer an explicit patent grant.
+
+Recommended pre-publish check:
+
+```bash
+git status --short
+git ls-files
+python -m pip install -r requirements-dev.txt
+pytest -q
+node --test tests/frontend_state.test.js tests/ui_components.test.js
+bash -n install_service.sh uninstall_service.sh tools/generate_pwa_icons.sh
+```
+
 ## English
 
 ### Features
@@ -53,7 +74,8 @@ Auto Unlock through Apple Watch, not through an iPhone web app.
 ### Install
 
 ```bash
-cd iphone_mac_remote
+git clone <your-airmac-repository-url>
+cd <repository-directory>
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -270,6 +292,13 @@ iPhone 锁屏或页面进入后台时会主动暂停 WebSocket；回到 AirMac �
 不能发送 Wake-on-LAN UDP 数据包。
 
 如果 Swift 编译器与 macOS SDK 不匹配，安装仍会继续，复制反馈会自动退回 macOS 系统通知。
+
+### GitHub 发布前确认
+
+当前仓库已经适合整理后公开：本地日志、配对数据库、旧白名单、虚拟环境和生成的辅助
+二进制都不会被 Git 跟踪。正式公开前还需要选择并添加 `LICENSE` 文件；如果没有明确
+license，别人虽然能看到代码，但没有清晰的使用、修改和再发布许可。个人工具通常可选
+MIT；如果你希望包含明确专利授权，也可以选 Apache-2.0。
 
 ### 管理设备
 

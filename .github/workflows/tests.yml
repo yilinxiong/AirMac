@@ -20,8 +20,8 @@ jobs:
         run: python -m pip install -r requirements-dev.txt
       - name: Python tests
         run: python -m pytest -q
-      - name: Frontend state tests
-        run: node --test tests/frontend_state.test.js
+      - name: Frontend tests
+        run: node --test tests/frontend_state.test.js tests/ui_components.test.js
       - name: Static checks
         run: |
           python -m compileall -q main.py auth.py protocol.py mac_controller.py manage_devices.py pairing_dialog.py tests
@@ -33,3 +33,6 @@ jobs:
       - name: Build native menu-bar manager
         if: runner.os == 'macOS'
         run: clang -fobjc-arc -framework Cocoa menubar.m -o /tmp/airmac-menubar-check
+      - name: Build audio output switcher
+        if: runner.os == 'macOS'
+        run: clang -fobjc-arc -framework Foundation -framework CoreAudio audio_switcher.m -o /tmp/airmac-audio-switcher-check

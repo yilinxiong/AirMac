@@ -163,6 +163,22 @@ transport confidentiality; never describe it as safe for an untrusted network.
 8. Do not revoke/clear devices, delete logs/data, rewrite Git history, or remove the
    user's local `remote.log`/`whitelist.json` unless explicitly requested.
 
+## Public release hygiene
+
+- Keep the tracked repository free of local state: no logs, virtual environments,
+  generated helper binaries, pairing databases, lock files, or legacy
+  `whitelist.json` content.
+- Do not add a `LICENSE` file without an explicit user choice. Before publishing
+  as open source, call out that a missing license leaves reuse rights unclear.
+- Keep GitHub Actions aligned with the local check list, including Python tests,
+  both Node frontend tests, shell syntax checks, and macOS native helper builds.
+- When making UI experiments, prefer small commits and tags such as
+  `ui-v2-deck-rcNN` so the user can revert a specific design iteration without
+  rewinding unrelated work.
+- Use placeholder-free public documentation where possible. If the final GitHub
+  URL is unknown, write clone/install steps in terms of `<your-airmac-repository-url>`
+  and `<repository-directory>` rather than inventing an owner or repository name.
+
 ## Runtime paths and labels
 
 - Server LaunchAgent: `com.airmac.remote`

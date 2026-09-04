@@ -17,6 +17,7 @@ class FakeController:
     def __init__(self) -> None:
         self.actions: list[Any] = []
         self.reset_count = 0
+        self.auto_wake_checks = 0
 
     async def start(self) -> None:
         pass
@@ -26,6 +27,10 @@ class FakeController:
 
     async def reset(self) -> None:
         self.reset_count += 1
+
+    async def wake_if_display_asleep(self) -> bool:
+        self.auto_wake_checks += 1
+        return False
 
     async def dispatch(self, action: Any, notify: Any) -> bool:
         self.actions.append(action)
@@ -196,6 +201,7 @@ def test_authenticated_websocket_dispatches_valid_actions(
         websocket.send_json({"action": "move", "dx": 2, "dy": -3})
     assert isinstance(controller.actions[0], MoveAction)
     assert controller.reset_count >= 2
+    assert controller.auto_wake_checks == 1
 
 
 def test_heartbeat_is_acknowledged_without_dispatch(

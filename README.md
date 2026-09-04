@@ -10,6 +10,10 @@ AirMac turns an iPhone into a low-latency trackpad and keyboard for a Mac on the
 
 > Security boundary: AirMac uses device pairing and bearer-token authentication, but the default zero-configuration setup is HTTP/WS, not encrypted HTTPS/WSS. Use it only on a trusted home or personal LAN. Do not expose port 8000 to the internet or use it on an untrusted/shared network.
 
+AirMac never stores or transmits the Mac login password and does not attempt to
+turn iPhone Touch ID or Face ID into a macOS login credential. Apple exposes Mac
+Auto Unlock through Apple Watch, not through an iPhone web app.
+
 ## English
 
 ### Features
@@ -104,9 +108,12 @@ WebSocket. Returning to AirMac reconnects automatically. The server expires an
 unresponsive foreground session after 16 seconds so a stale mobile connection
 cannot hold the controller indefinitely.
 
-The wake button holds a cancellable display-sleep assertion for 30 seconds. This
-prevents the display from immediately sleeping again while leaving the normal
-macOS password and lock-screen policy unchanged.
+After an authenticated phone connection, AirMac checks the main display and wakes
+it only when macOS reports that it is asleep. The same cancellable 30-second
+display assertion used by the Wake button prevents an immediate return to sleep.
+This cannot bypass the password or lock screen. If the whole Mac is in deep sleep,
+the connection must first reach it through macOS **Wake for network access**;
+mobile browsers cannot send a Wake-on-LAN UDP packet themselves.
 
 ### Paired-device management
 
@@ -168,6 +175,9 @@ clang -fobjc-arc -framework Foundation -framework CoreAudio audio_switcher.m -o 
 AirMac 可以把同一可信局域网中的 iPhone 变成 Mac 的低延迟触控板和键盘。后端使用 FastAPI、WebSocket 与 macOS Quartz 原生输入事件。
 
 > 安全边界：AirMac 具有一次性验证码配对和设备令牌认证，但默认零配置模式使用未加密的 HTTP/WS。请只在可信家庭或个人局域网中使用，不要把 8000 端口暴露到互联网，也不要在不可信共享网络中使用。
+
+AirMac 不保存或传输 Mac 登录密码，也不会把 iPhone 的触控 ID/面容 ID 伪装成 macOS
+登录凭据。Apple 官方提供的是 Apple Watch 自动解锁，而不是 iPhone 网页远程解锁。
 
 ### 功能
 
@@ -251,8 +261,11 @@ Mac 菜单栏中的 AirMac 光标图标会显示后台服务是否可用。菜�
 iPhone 锁屏或页面进入后台时会主动暂停 WebSocket；回到 AirMac 后自动恢复。
 服务端会在前台连接连续 16 秒没有心跳时清理僵尸会话，避免旧连接长期占用控制器。
 
-唤醒按钮会建立 30 秒、可取消的显示器保活断言，避免刚唤醒又立刻息屏；它不会绕过
-macOS 的锁屏或密码策略。
+手机认证连接后，AirMac 会检查主显示器，只在 macOS 报告显示器处于休眠状态时自动
+唤醒；已经亮屏时不会刷新闲置计时。自动唤醒和手动唤醒共用 30 秒、可取消的显示器
+保活断言，避免刚唤醒又立刻息屏，但不会绕过 macOS 的锁屏或密码策略。如果整台 Mac
+处于服务不可达的深度睡眠，仍需要先开启 macOS 的“唤醒以供网络访问”；手机网页本身
+不能发送 Wake-on-LAN UDP 数据包。
 
 如果 Swift 编译器与 macOS SDK 不匹配，安装仍会继续，复制反馈会自动退回 macOS 系统通知。
 

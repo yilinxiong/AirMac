@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Awaitable, Callable
 
 import ApplicationServices as AX
+import AppKit
 import Quartz
 from pynput.keyboard import Controller as KeyboardController, Key
 
@@ -606,6 +607,20 @@ class MacController:
             self.control_executor, self._press_and_release, Key.shift
         )
 
+    async def wake_if_display_asleep(self) -> bool:
+        loop = asyncio.get_running_loop()
+        is_asleep = await loop.run_in_executor(
+            self.control_executor, self._main_display_is_asleep
+        )
+        if not is_asleep:
+            return False
+        logger.info("Sleeping display detected after authentication; waking")
+        await self._wake_display()
+        return True
+
+    def _main_display_is_asleep(self) -> bool:
+        return bool(Quartz.CGDisplayIsAsleep(Quartz.CGMainDisplayID()))
+
     async def _stop_wake_assertion(self) -> None:
         task = self.wake_task
         if task and not task.done():
@@ -738,36 +753,85 @@ class MacController:
             self._post_key_code(CONTROL_CENTER_KEY_CODE, CONTROL_CENTER_FLAGS)
 
     def _close_fullscreen_window(self) -> str:
-        system = AX.AXUIElementCreateSystemWide()
-        error, application = AX.AXUIElementCopyAttributeValue(
-            system, AX.kAXFocusedApplicationAttribute, None
-        )
-        if error != AX.kAXErrorSuccess or application is None:
-            return "error"
+        accessibility_fullscreen = False
+        try:
+            system = AX.AXUIElementCreateSystemWide()
+            error, application = AX.AXUIElementCopyAttributeValue(
+                system, AX.kAXFocusedApplicationAttribute, None
+            )
+            if error == AX.kAXErrorSuccess and application is not None:
+                error, window = AX.AXUIElementCopyAttributeValue(
+                    application, AX.kAXFocusedWindowAttribute, None
+                )
+                if error == AX.kAXErrorSuccess and window is not None:
+                    error, is_fullscreen = AX.AXUIElementCopyAttributeValue(
+                        window, AX_FULLSCREEN_ATTRIBUTE, None
+                    )
+                    accessibility_fullscreen = (
+                        error == AX.kAXErrorSuccess and bool(is_fullscreen)
+                    )
+        except Exception:
+            logger.debug("Unable to read accessibility fullscreen state", exc_info=True)
 
-        error, window = AX.AXUIElementCopyAttributeValue(
-            application, AX.kAXFocusedWindowAttribute, None
-        )
-        if error != AX.kAXErrorSuccess or window is None:
+        bounds_fullscreen = self._frontmost_window_fills_display()
+        if not accessibility_fullscreen and not bounds_fullscreen:
+            logger.info(
+                "Ignored close-fullscreen request: focused window is not fullscreen"
+            )
             return "ignored"
 
-        error, is_fullscreen = AX.AXUIElementCopyAttributeValue(
-            window, AX_FULLSCREEN_ATTRIBUTE, None
+        self._close_front_window()
+        logger.info(
+            "Closed focused fullscreen window accessibility=%s bounds=%s",
+            accessibility_fullscreen,
+            bounds_fullscreen,
         )
-        if error != AX.kAXErrorSuccess or not bool(is_fullscreen):
-            return "ignored"
-
-        error, close_button = AX.AXUIElementCopyAttributeValue(
-            window, AX.kAXCloseButtonAttribute, None
-        )
-        if error != AX.kAXErrorSuccess or close_button is None:
-            return "error"
-        if (
-            AX.AXUIElementPerformAction(close_button, AX.kAXPressAction)
-            != AX.kAXErrorSuccess
-        ):
-            return "error"
         return "closed"
+
+    def _frontmost_window_fills_display(self) -> bool:
+        application = AppKit.NSWorkspace.sharedWorkspace().frontmostApplication()
+        if application is None:
+            return False
+        process_id = int(application.processIdentifier())
+        options = (
+            Quartz.kCGWindowListOptionOnScreenOnly
+            | Quartz.kCGWindowListExcludeDesktopElements
+        )
+        window_infos = Quartz.CGWindowListCopyWindowInfo(
+            options, Quartz.kCGNullWindowID
+        ) or []
+        success, display_ids, count = Quartz.CGGetActiveDisplayList(16, None, None)
+        if success != 0 or count == 0:
+            return False
+
+        displays = [
+            Quartz.CGDisplayBounds(display_ids[index]) for index in range(count)
+        ]
+        for info in window_infos:
+            if int(info.get(Quartz.kCGWindowOwnerPID, -1)) != process_id:
+                continue
+            if int(info.get(Quartz.kCGWindowLayer, -1)) != 0:
+                continue
+            bounds = info.get(Quartz.kCGWindowBounds)
+            if not isinstance(bounds, dict):
+                continue
+            for display in displays:
+                if (
+                    abs(float(bounds.get("X", math.inf)) - display.origin.x) <= 3
+                    and abs(float(bounds.get("Y", math.inf)) - display.origin.y) <= 3
+                    and abs(float(bounds.get("Width", -1)) - display.size.width) <= 3
+                    and abs(float(bounds.get("Height", -1)) - display.size.height)
+                    <= 3
+                ):
+                    return True
+        return False
+
+    def _close_front_window(self) -> None:
+        self.keyboard.press(Key.cmd)
+        try:
+            self._press_and_release("w")
+        finally:
+            self.keyboard.release(Key.cmd)
 
     def _post_key_code(self, key_code: int, flags: int) -> None:
         for is_down in (True, False):

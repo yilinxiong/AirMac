@@ -77,9 +77,10 @@ transport confidentiality; never describe it as safe for an untrusted network.
 - Never block the asyncio event loop with Quartz, clipboard, AppleScript, process,
   or keyboard work. Use the existing executors/async subprocess helpers.
 - The Control Center shortcut must emit only macOS's fixed global Fn-C key event.
-  Close Fullscreen must verify the focused window's `AXFullScreen` value before
-  pressing its fixed `AXCloseButton`; never infer fullscreen state from phone
-  input or send an unconditional close/quit shortcut.
+  Close Fullscreen must verify either the focused window's `AXFullScreen` value
+  or an exact foreground-window/display-bounds match before sending Command-W;
+  never infer fullscreen state from phone input or send an unconditional close
+  or quit shortcut.
   Audio switching must invoke the bundled helper with the literal `cycle`
   argument; never accept a device identifier, script source, or executable path
   from the phone.
@@ -115,6 +116,9 @@ transport confidentiality; never describe it as safe for an untrusted network.
 
 - Wake uses a managed, nonblocking `caffeinate -d -u -t 30` assertion and a delayed
   Shift key. It must not bypass the macOS lock screen or password policy.
+- After WebSocket authentication, check `CGDisplayIsAsleep` and invoke wake only
+  when the main display is asleep. An already-awake connection must not refresh
+  the user's idle timer.
 - The assertion intentionally outlives a normal phone WebSocket disconnect for its
   bounded 30-second duration, but is stopped on service shutdown/replacement.
 - Plain LAN HTTP may not support Service Workers. PWA registration must remain

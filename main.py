@@ -519,6 +519,14 @@ def create_app(
                 client.host,
                 auth_message.device_id,
             )
+            try:
+                await controller.wake_if_display_asleep()
+            except Exception:
+                logger.exception(
+                    "Unable to check display sleep state session=%s device=%s",
+                    session.session_id,
+                    session.device_id,
+                )
 
             async def notify(payload: dict[str, object]) -> None:
                 if (

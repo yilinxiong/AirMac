@@ -9,44 +9,71 @@
         {
             title: '电源与登录',
             actions: [
-                { label: '唤醒', icon: '☀︎', theme: 'sunrise', message: { action: 'wake_watch' }, tone: 'accent' },
-                { label: '锁定 Mac', icon: '⌾', theme: 'lock', message: { action: 'quick_action', command: 'lock_screen' }, tone: 'danger' },
-                { label: '显示器睡眠', icon: '☾', theme: 'sleep', message: { action: 'display_sleep' } },
+                { label: '唤醒', icon: 'sun', theme: 'sunrise', message: { action: 'wake_watch' }, tone: 'accent' },
+                { label: '锁定 Mac', icon: 'lock', theme: 'lock', message: { action: 'quick_action', command: 'lock_screen' }, tone: 'danger' },
+                { label: '显示器睡眠', icon: 'moon', theme: 'sleep', message: { action: 'display_sleep' } },
             ],
         },
         {
             title: '快捷菜单',
             actions: [
-                { label: '控制中心', icon: '◩', theme: 'control', message: { action: 'quick_action', command: 'open_control_center' }, tone: 'accent' },
-                { label: 'Apps', icon: '▦', theme: 'apps', message: { action: 'app_launcher' } },
-                { label: '调度中心', icon: '◇', theme: 'mission', message: { action: 'mission_control' } },
-                { label: '播放 / 暂停', icon: '▶︎', theme: 'media', message: { action: 'media', command: 'playpause' } },
-                { label: '全屏', icon: '⛶', theme: 'fullscreen', message: { action: 'media', command: 'fullscreen' } },
-                { label: '退出全屏应用', icon: '×', theme: 'close', message: { action: 'quick_action', command: 'close_fullscreen' }, tone: 'danger' },
+                { label: '控制中心', icon: 'control-center', theme: 'control', message: { action: 'quick_action', command: 'open_control_center' }, tone: 'accent' },
+                { label: 'Apps', icon: 'apps', theme: 'apps', message: { action: 'app_launcher' } },
+                { label: '调度中心', icon: 'mission-control', theme: 'mission', message: { action: 'mission_control' } },
+                { label: '播放 / 暂停', icon: 'play-pause', theme: 'media', message: { action: 'media', command: 'playpause' } },
+                { label: '全屏', icon: 'fullscreen', theme: 'fullscreen', message: { action: 'media', command: 'fullscreen' } },
+                { label: '退出全屏应用', icon: 'close', theme: 'close', message: { action: 'quick_action', command: 'close_fullscreen' }, tone: 'danger' },
             ],
         },
         {
             title: '声音与显示',
             actions: [
-                { label: '音量减', icon: '▾', theme: 'volume-down', message: { action: 'quick_action', command: 'volume_down' } },
-                { label: '静音', icon: '◌', theme: 'mute', message: { action: 'quick_action', command: 'volume_mute' } },
-                { label: '音量加', icon: '▴', theme: 'volume-up', message: { action: 'quick_action', command: 'volume_up' } },
-                { label: '切换扬声器', icon: '◖', theme: 'speaker', message: { action: 'quick_action', command: 'cycle_audio_output' }, tone: 'accent' },
-                { label: '亮度减', icon: '☼', theme: 'dim', message: { action: 'quick_action', command: 'brightness_down' } },
-                { label: '亮度加', icon: '☀︎', theme: 'bright', message: { action: 'quick_action', command: 'brightness_up' } },
-                { label: '截屏到剪贴板', icon: '⌗', theme: 'screenshot', message: { action: 'quick_action', command: 'screenshot' } },
+                { label: '音量减', icon: 'volume-low', theme: 'volume-down', message: { action: 'quick_action', command: 'volume_down' } },
+                { label: '静音', icon: 'volume-mute', theme: 'mute', message: { action: 'quick_action', command: 'volume_mute' } },
+                { label: '音量加', icon: 'volume-high', theme: 'volume-up', message: { action: 'quick_action', command: 'volume_up' } },
+                { label: '切换扬声器', icon: 'airplay', theme: 'speaker', message: { action: 'quick_action', command: 'cycle_audio_output' }, tone: 'accent' },
+                { label: '亮度减', icon: 'brightness-low', theme: 'dim', message: { action: 'quick_action', command: 'brightness_down' } },
+                { label: '亮度加', icon: 'brightness-high', theme: 'bright', message: { action: 'quick_action', command: 'brightness_up' } },
+                { label: '截屏到剪贴板', icon: 'screenshot', theme: 'screenshot', message: { action: 'quick_action', command: 'screenshot' } },
             ],
         },
         {
             title: '窗口',
             actions: [
-                { label: '左半屏', icon: '◧', theme: 'window-left', message: { action: 'quick_action', command: 'window_left' } },
-                { label: '填充', icon: '▣', theme: 'window-fill', message: { action: 'quick_action', command: 'window_fill' } },
-                { label: '右半屏', icon: '◨', theme: 'window-right', message: { action: 'quick_action', command: 'window_right' } },
-                { label: '居中', icon: '▢', theme: 'window-center', message: { action: 'quick_action', command: 'window_center' } },
+                { label: '左半屏', icon: 'window-left', theme: 'window-left', message: { action: 'quick_action', command: 'window_left' } },
+                { label: '填充', icon: 'window-fill', theme: 'window-fill', message: { action: 'quick_action', command: 'window_fill' } },
+                { label: '右半屏', icon: 'window-right', theme: 'window-right', message: { action: 'quick_action', command: 'window_right' } },
+                { label: '居中', icon: 'window-center', theme: 'window-center', message: { action: 'quick_action', command: 'window_center' } },
             ],
         },
     ]);
+
+    const ICONS = Object.freeze({
+        sun: '<circle cx="12" cy="12" r="3.5"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/>',
+        lock: '<rect x="5.5" y="10" width="13" height="10" rx="3"/><path d="M8.5 10V7.5a3.5 3.5 0 0 1 7 0V10M12 14v2.5"/>',
+        moon: '<path d="M19.5 15.2A8 8 0 0 1 8.8 4.5 8 8 0 1 0 19.5 15.2Z"/>',
+        'control-center': '<rect x="3" y="4" width="8" height="7" rx="3.5"/><rect x="13" y="4" width="8" height="7" rx="3.5"/><rect x="3" y="13" width="8" height="7" rx="3.5"/><rect x="13" y="13" width="8" height="7" rx="3.5"/><circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none"/><path d="M15.5 7.5h3M7 16.5h1M16.2 15.7l1.6 1.6M17.8 15.7l-1.6 1.6"/>',
+        apps: '<rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1.7"/><rect x="14" y="3.5" width="6.5" height="6.5" rx="1.7"/><rect x="3.5" y="14" width="6.5" height="6.5" rx="1.7"/><rect x="14" y="14" width="6.5" height="6.5" rx="1.7"/>',
+        'mission-control': '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 9.5h18M8.5 9.5V20M15.5 9.5V20"/>',
+        'play-pause': '<path d="m5.5 5 8 7-8 7Z" fill="currentColor" stroke="none"/><path d="M17 6v12M20.5 6v12"/>',
+        fullscreen: '<path d="M9 4H5a1 1 0 0 0-1 1v4M15 4h4a1 1 0 0 1 1 1v4M9 20H5a1 1 0 0 1-1-1v-4M15 20h4a1 1 0 0 0 1-1v-4"/>',
+        close: '<circle cx="12" cy="12" r="8.5"/><path d="m8.5 8.5 7 7M15.5 8.5l-7 7"/>',
+        'volume-low': '<path d="M5 10H2.8v4H5l4 3.5v-11Z"/><path d="M12.5 9.2a4 4 0 0 1 0 5.6"/>',
+        'volume-mute': '<path d="M5 10H2.8v4H5l4 3.5v-11Z"/><path d="m14.5 9 6 6M20.5 9l-6 6"/>',
+        'volume-high': '<path d="M5 10H2.8v4H5l4 3.5v-11Z"/><path d="M12.5 9.2a4 4 0 0 1 0 5.6M15 6.8a7.2 7.2 0 0 1 0 10.4"/>',
+        airplay: '<rect x="3" y="4" width="18" height="13" rx="2.5"/><path d="m7.5 21 4.5-5 4.5 5Z" fill="currentColor" stroke="none"/>',
+        'brightness-low': '<circle cx="12" cy="12" r="3"/><path d="M12 4v1.5M12 18.5V20M4 12h1.5M18.5 12H20M6.3 6.3l1 1M16.7 16.7l1 1M17.7 6.3l-1 1M7.3 16.7l-1 1"/>',
+        'brightness-high': '<circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/>',
+        screenshot: '<path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="4"/>',
+        'window-left': '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M12 4v16"/><path d="M6 12h3" opacity=".75"/>',
+        'window-fill': '<rect x="3" y="4" width="18" height="16" rx="3"/><rect x="6.5" y="7.5" width="11" height="9" rx="1.5"/>',
+        'window-right': '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M12 4v16"/><path d="M15 12h3" opacity=".75"/>',
+        'window-center': '<rect x="3" y="4" width="18" height="16" rx="3"/><rect x="8" y="7.5" width="8" height="9" rx="1.5"/>',
+    });
+
+    function iconSvg(name) {
+        return `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+    }
 
     const HTMLElementBase = typeof HTMLElement === 'undefined' ? class {} : HTMLElement;
 
@@ -96,7 +123,7 @@
                     <div class="grid">
                         ${group.actions.map((item) => `
                             <button type="button" data-message='${JSON.stringify(item.message)}' data-tone="${item.tone || ''}" data-theme="${item.theme || ''}">
-                                <span class="icon">${item.icon}</span><span class="label">${item.label}</span>
+                                <span class="icon">${iconSvg(item.icon)}</span><span class="label">${item.label}</span>
                             </button>`).join('')}
                     </div>
                 </section>`).join('');
@@ -115,43 +142,27 @@
                         transition: transform .12s ease, filter .12s ease;
                         -webkit-tap-highlight-color: transparent; touch-action: manipulation;
                     }
-                    button:active { transform: scale(.94); }
-                    button:active .icon { filter: brightness(1.14) saturate(1.08); box-shadow: 0 5px 12px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.22); }
-                    button[data-tone="accent"] { color: #75baff; }
-                    button[data-tone="danger"] { color: #ff8a84; }
+                    button:active { transform: scale(.96); }
+                    button:active .icon { background: rgba(255,255,255,.14); transform: scale(.96); }
                     .icon {
                         width: 60px; height: 60px; flex: 0 0 60px;
                         display: grid; place-items: center; box-sizing: border-box;
-                        border: 1px solid rgba(255,255,255,.16); border-radius: 13.5px;
-                        background:
-                            radial-gradient(circle at 28% 18%, rgba(255,255,255,.42), transparent 24px),
-                            linear-gradient(145deg, var(--icon-from), var(--icon-to));
-                        box-shadow: 0 8px 17px var(--icon-glow), inset 0 1px 0 rgba(255,255,255,.25);
-                        color: var(--icon-color, rgba(255,255,255,.96));
-                        font: 500 24px/1 -apple-system, BlinkMacSystemFont, sans-serif;
-                        text-shadow: 0 1px 6px rgba(0,0,0,.28);
+                        border: 1px solid rgba(255,255,255,.095); border-radius: 13.5px;
+                        background: linear-gradient(155deg, rgba(255,255,255,.105), rgba(255,255,255,.055));
+                        box-shadow: 0 5px 14px rgba(0,0,0,.14), inset 0 1px 0 rgba(255,255,255,.075);
+                        color: var(--symbol-color, rgba(255,255,255,.9));
+                        transition: transform .12s ease, background .12s ease;
                     }
+                    .icon svg { width: 27px; height: 27px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
                     .label { min-height: 12px; text-align: center; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-                    button[data-theme="sunrise"] { --icon-from: #ffd86f; --icon-to: #ff7a59; --icon-glow: rgba(255,138,64,.24); }
-                    button[data-theme="lock"] { --icon-from: #ff6b6b; --icon-to: #a73446; --icon-glow: rgba(255,78,78,.23); }
-                    button[data-theme="sleep"] { --icon-from: #5968ff; --icon-to: #161f65; --icon-glow: rgba(78,93,255,.22); }
-                    button[data-theme="control"] { --icon-from: #5ac8fa; --icon-to: #007aff; --icon-glow: rgba(0,122,255,.26); }
-                    button[data-theme="apps"] { --icon-from: #8e8e93; --icon-to: #3a3a3c; --icon-glow: rgba(255,255,255,.11); }
-                    button[data-theme="mission"] { --icon-from: #af52de; --icon-to: #5856d6; --icon-glow: rgba(175,82,222,.22); }
-                    button[data-theme="media"] { --icon-from: #ff9f0a; --icon-to: #ff375f; --icon-glow: rgba(255,82,58,.23); }
-                    button[data-theme="fullscreen"] { --icon-from: #64d2ff; --icon-to: #0a84ff; --icon-glow: rgba(10,132,255,.23); }
-                    button[data-theme="close"] { --icon-from: #ff453a; --icon-to: #7a1f22; --icon-glow: rgba(255,69,58,.24); }
-                    button[data-theme="volume-down"] { --icon-from: #30d158; --icon-to: #248a3d; --icon-glow: rgba(48,209,88,.2); }
-                    button[data-theme="mute"] { --icon-from: #a1a1a6; --icon-to: #48484a; --icon-glow: rgba(180,180,188,.15); }
-                    button[data-theme="volume-up"] { --icon-from: #32d74b; --icon-to: #00a35b; --icon-glow: rgba(50,215,75,.21); }
-                    button[data-theme="speaker"] { --icon-from: #0a84ff; --icon-to: #5e5ce6; --icon-glow: rgba(94,92,230,.24); }
-                    button[data-theme="dim"] { --icon-from: #8e8e93; --icon-to: #2c2c2e; --icon-glow: rgba(142,142,147,.14); }
-                    button[data-theme="bright"] { --icon-from: #ffd60a; --icon-to: #ff9f0a; --icon-glow: rgba(255,214,10,.22); }
-                    button[data-theme="screenshot"] { --icon-from: #bf5af2; --icon-to: #5e5ce6; --icon-glow: rgba(191,90,242,.22); }
-                    button[data-theme="window-left"] { --icon-from: #5e5ce6; --icon-to: #0a84ff; --icon-glow: rgba(94,92,230,.2); }
-                    button[data-theme="window-fill"] { --icon-from: #40c8e0; --icon-to: #30b0c7; --icon-glow: rgba(64,200,224,.18); }
-                    button[data-theme="window-right"] { --icon-from: #0a84ff; --icon-to: #34c759; --icon-glow: rgba(52,199,89,.2); }
-                    button[data-theme="window-center"] { --icon-from: #ff9f0a; --icon-to: #bf5af2; --icon-glow: rgba(255,159,10,.2); }
+                    button[data-theme="sunrise"] { --symbol-color: #f5c451; }
+                    button[data-theme="lock"], button[data-theme="close"] { --symbol-color: #ff6961; }
+                    button[data-theme="sleep"], button[data-theme="mission"] { --symbol-color: #a8a5ff; }
+                    button[data-theme="control"], button[data-theme="fullscreen"], button[data-theme="speaker"] { --symbol-color: #66b5ff; }
+                    button[data-theme="media"] { --symbol-color: #70d18c; }
+                    button[data-theme="bright"] { --symbol-color: #f5c451; }
+                    button[data-theme="screenshot"] { --symbol-color: #c6a3ed; }
+                    button[data-tone="danger"] .icon { background: rgba(255,89,82,.075); border-color: rgba(255,105,97,.14); }
                     @media (prefers-reduced-motion: reduce) { button { transition: none; } }
                 </style>${groups}`;
             shadow.addEventListener('click', (event) => {
@@ -171,5 +182,5 @@
         if (!customElements.get('airmac-deck')) customElements.define('airmac-deck', AirMacDeck);
     }
 
-    return { DECK_GROUPS, AirMacStatus, AirMacDeck };
+    return { DECK_GROUPS, ICONS, AirMacStatus, AirMacDeck };
 }));

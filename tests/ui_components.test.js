@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { DECK_GROUPS } = require('../ui_components.js');
+const { DECK_GROUPS, ICONS } = require('../ui_components.js');
 
 test('quick deck exposes only fixed protocol messages', () => {
     const actions = DECK_GROUPS.flatMap((group) => group.actions);
@@ -28,6 +28,8 @@ test('quick deck exposes only fixed protocol messages', () => {
     assert.equal(actions.some((item) => item.message.command === 'cycle_audio_output'), true);
     assert.equal(actions.some((item) => JSON.stringify(item.message).includes('shell')), false);
     for (const item of actions) {
+        assert.equal(typeof ICONS[item.icon], 'string');
+        assert.match(ICONS[item.icon], /^</);
         assert.deepEqual(Object.keys(item.message).sort(),
             item.message.command ? ['action', 'command'] : ['action']);
     }

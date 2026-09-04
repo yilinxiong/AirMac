@@ -96,7 +96,7 @@
                     <div class="grid">
                         ${group.actions.map((item) => `
                             <button type="button" data-message='${JSON.stringify(item.message)}' data-tone="${item.tone || ''}">
-                                <span class="icon">${item.icon}</span><span>${item.label}</span>
+                                <span class="icon">${item.icon}</span><span class="label">${item.label}</span>
                             </button>`).join('')}
                     </div>
                 </section>`).join('');
@@ -105,20 +105,41 @@
                     :host { display: block; min-height: 0; color: white; }
                     section + section { margin-top: 20px; }
                     h2 { margin: 0 0 9px 3px; color: rgba(255,255,255,.43); font: 600 11px/1.2 -apple-system, sans-serif; letter-spacing: .09em; text-transform: uppercase; }
-                    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+                    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px 8px; }
                     button {
-                        min-width: 0; min-height: 64px; padding: 8px 4px 7px;
-                        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-                        border: 1px solid rgba(255,255,255,.1); border-radius: 16px;
-                        background: rgba(255,255,255,.065); color: rgba(255,255,255,.8);
-                        box-shadow: 0 8px 24px rgba(0,0,0,.14); font: 500 11px/1.15 -apple-system, sans-serif;
+                        min-width: 0; min-height: 82px; padding: 2px;
+                        display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 7px;
+                        border: 0; border-radius: 18px;
+                        background: transparent; color: rgba(255,255,255,.82);
+                        box-shadow: none; font: 500 11px/1.15 -apple-system, sans-serif;
                         -webkit-tap-highlight-color: transparent; touch-action: manipulation;
                     }
-                    button:active { transform: scale(.95); background: rgba(255,255,255,.15); }
-                    button[data-tone="accent"] { background: rgba(10,132,255,.17); color: #75baff; }
+                    button:active { transform: scale(.96); }
+                    button:active .icon { filter: brightness(1.18); }
+                    button[data-tone="accent"] { color: #75baff; }
+                    button[data-tone="accent"] .icon {
+                        border-color: rgba(70,164,255,.34);
+                        background: linear-gradient(145deg, rgba(35,142,255,.35), rgba(10,94,200,.2));
+                    }
                     button[data-tone="danger"] { color: #ff8a84; }
-                    .icon { font: 400 22px/1 -apple-system, sans-serif; min-height: 22px; }
-                    @media (min-width: 430px) { .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+                    button[data-tone="danger"] .icon {
+                        border-color: rgba(255,105,97,.24);
+                        background: linear-gradient(145deg, rgba(255,92,83,.18), rgba(119,32,30,.12));
+                    }
+                    .icon {
+                        width: 60px; height: 60px; flex: 0 0 60px;
+                        display: grid; place-items: center; box-sizing: border-box;
+                        border: 1px solid rgba(255,255,255,.12); border-radius: 15px;
+                        background: linear-gradient(145deg, rgba(255,255,255,.115), rgba(255,255,255,.05));
+                        box-shadow: 0 7px 18px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.07);
+                        font: 400 23px/1 -apple-system, sans-serif;
+                    }
+                    .label { min-height: 13px; text-align: center; }
+                    @media (min-width: 430px) {
+                        .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+                        button { min-height: 87px; }
+                        .icon { width: 64px; height: 64px; flex-basis: 64px; border-radius: 16px; }
+                    }
                     @media (prefers-reduced-motion: reduce) { button { transition: none; } }
                 </style>${groups}`;
             shadow.addEventListener('click', (event) => {

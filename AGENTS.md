@@ -34,12 +34,13 @@ transport confidentiality; never describe it as safe for an untrusted network.
 - `mac_controller.py`: bounded pointer/control queues, Quartz input, ordered system
   commands, clipboard serialization, wake assertion, and forced input release.
 - `index.html`: mobile UI, pairing flow, WebSocket lifecycle, touch handling,
-  keyboard input, text projection, and install hint.
+  keyboard input, text projection, language switching, and install hint.
 - `frontend_state.js`: browser/Node-compatible state machines for reconnects,
   projection, gestures, preferences, and latency. Put isolated logic here and
   unit test it.
 - `ui_components.js`: build-free native Web Components for the connection pill
-  and Quick Deck. Keep deck messages fixed data, not user-provided commands.
+  and bilingual Quick Deck. Keep deck messages fixed data, not user-provided
+  commands.
 - `audio_switcher.m`: generated-binary-free Core Audio helper. It accepts only
   `list` or `cycle`, and prints the selected output-device name to stdout.
 - `menubar.m`: native AppKit status item. It invokes `manage_devices.py` through
@@ -111,6 +112,9 @@ transport confidentiality; never describe it as safe for an untrusted network.
   a separate mobile layout column.
 - Pointer and scroll preference values must be normalized and client-generated
   motion must remain inside the server protocol bounds.
+- User-facing mobile UI strings must support both Chinese and English. When adding
+  or renaming controls in `index.html` or `ui_components.js`, update both language
+  dictionaries and keep the language preference local to the phone.
 
 ### Wake and PWA behavior
 

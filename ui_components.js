@@ -5,48 +5,65 @@
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
     'use strict';
 
-    const DECK_GROUPS = Object.freeze([
+    const DECK_GROUP_DEFINITIONS = Object.freeze([
         {
-            title: '电源与登录',
+            title: { zh: '电源与登录', en: 'Power & Login' },
             actions: [
-                { label: '唤醒', icon: 'sun', theme: 'sunrise', message: { action: 'wake_watch' }, tone: 'accent' },
-                { label: '锁定 Mac', icon: 'lock', theme: 'lock', message: { action: 'quick_action', command: 'lock_screen' }, tone: 'danger' },
-                { label: '显示器睡眠', icon: 'moon', theme: 'sleep', message: { action: 'display_sleep' } },
+                { label: { zh: '唤醒', en: 'Wake' }, icon: 'sun', theme: 'sunrise', message: { action: 'wake_watch' }, tone: 'accent' },
+                { label: { zh: '锁定 Mac', en: 'Lock Mac' }, icon: 'lock', theme: 'lock', message: { action: 'quick_action', command: 'lock_screen' }, tone: 'danger' },
+                { label: { zh: '显示器睡眠', en: 'Display Sleep' }, icon: 'moon', theme: 'sleep', message: { action: 'display_sleep' } },
             ],
         },
         {
-            title: '快捷菜单',
+            title: { zh: '快捷菜单', en: 'Quick Menu' },
             actions: [
-                { label: '控制中心', icon: 'control-center', theme: 'control', message: { action: 'quick_action', command: 'open_control_center' }, tone: 'accent' },
-                { label: 'Apps', icon: 'apps', theme: 'apps', message: { action: 'app_launcher' } },
-                { label: '调度中心', icon: 'mission-control', theme: 'mission', message: { action: 'mission_control' } },
-                { label: '播放 / 暂停', icon: 'play-pause', theme: 'media', message: { action: 'media', command: 'playpause' } },
-                { label: '全屏', icon: 'fullscreen', theme: 'fullscreen', message: { action: 'media', command: 'fullscreen' } },
-                { label: '退出全屏应用', icon: 'close', theme: 'close', message: { action: 'quick_action', command: 'close_fullscreen' }, tone: 'danger' },
+                { label: { zh: '控制中心', en: 'Control Center' }, icon: 'control-center', theme: 'control', message: { action: 'quick_action', command: 'open_control_center' }, tone: 'accent' },
+                { label: { zh: 'Apps', en: 'Apps' }, icon: 'apps', theme: 'apps', message: { action: 'app_launcher' } },
+                { label: { zh: '调度中心', en: 'Mission Control' }, icon: 'mission-control', theme: 'mission', message: { action: 'mission_control' } },
+                { label: { zh: '播放 / 暂停', en: 'Play / Pause' }, icon: 'play-pause', theme: 'media', message: { action: 'media', command: 'playpause' } },
+                { label: { zh: '全屏', en: 'Fullscreen' }, icon: 'fullscreen', theme: 'fullscreen', message: { action: 'media', command: 'fullscreen' } },
+                { label: { zh: '退出全屏应用', en: 'Quit Fullscreen' }, icon: 'close', theme: 'close', message: { action: 'quick_action', command: 'close_fullscreen' }, tone: 'danger' },
             ],
         },
         {
-            title: '声音与显示',
+            title: { zh: '声音与显示', en: 'Sound & Display' },
             actions: [
-                { label: '音量减', icon: 'volume-low', theme: 'volume-down', message: { action: 'quick_action', command: 'volume_down' } },
-                { label: '静音', icon: 'volume-mute', theme: 'mute', message: { action: 'quick_action', command: 'volume_mute' } },
-                { label: '音量加', icon: 'volume-high', theme: 'volume-up', message: { action: 'quick_action', command: 'volume_up' } },
-                { label: '切换扬声器', icon: 'airplay', theme: 'speaker', message: { action: 'quick_action', command: 'cycle_audio_output' }, tone: 'accent' },
-                { label: '亮度减', icon: 'brightness-low', theme: 'dim', message: { action: 'quick_action', command: 'brightness_down' } },
-                { label: '亮度加', icon: 'brightness-high', theme: 'bright', message: { action: 'quick_action', command: 'brightness_up' } },
-                { label: '截屏到剪贴板', icon: 'screenshot', theme: 'screenshot', message: { action: 'quick_action', command: 'screenshot' } },
+                { label: { zh: '音量减', en: 'Volume Down' }, icon: 'volume-low', theme: 'volume-down', message: { action: 'quick_action', command: 'volume_down' } },
+                { label: { zh: '静音', en: 'Mute' }, icon: 'volume-mute', theme: 'mute', message: { action: 'quick_action', command: 'volume_mute' } },
+                { label: { zh: '音量加', en: 'Volume Up' }, icon: 'volume-high', theme: 'volume-up', message: { action: 'quick_action', command: 'volume_up' } },
+                { label: { zh: '切换扬声器', en: 'Switch Speaker' }, icon: 'airplay', theme: 'speaker', message: { action: 'quick_action', command: 'cycle_audio_output' }, tone: 'accent' },
+                { label: { zh: '亮度减', en: 'Brightness Down' }, icon: 'brightness-low', theme: 'dim', message: { action: 'quick_action', command: 'brightness_down' } },
+                { label: { zh: '亮度加', en: 'Brightness Up' }, icon: 'brightness-high', theme: 'bright', message: { action: 'quick_action', command: 'brightness_up' } },
+                { label: { zh: '截屏到剪贴板', en: 'Screenshot' }, icon: 'screenshot', theme: 'screenshot', message: { action: 'quick_action', command: 'screenshot' } },
             ],
         },
         {
-            title: '窗口',
+            title: { zh: '窗口', en: 'Windows' },
             actions: [
-                { label: '左半屏', icon: 'window-left', theme: 'window-left', message: { action: 'quick_action', command: 'window_left' } },
-                { label: '填充', icon: 'window-fill', theme: 'window-fill', message: { action: 'quick_action', command: 'window_fill' } },
-                { label: '右半屏', icon: 'window-right', theme: 'window-right', message: { action: 'quick_action', command: 'window_right' } },
-                { label: '居中', icon: 'window-center', theme: 'window-center', message: { action: 'quick_action', command: 'window_center' } },
+                { label: { zh: '左半屏', en: 'Left Half' }, icon: 'window-left', theme: 'window-left', message: { action: 'quick_action', command: 'window_left' } },
+                { label: { zh: '填充', en: 'Fill' }, icon: 'window-fill', theme: 'window-fill', message: { action: 'quick_action', command: 'window_fill' } },
+                { label: { zh: '右半屏', en: 'Right Half' }, icon: 'window-right', theme: 'window-right', message: { action: 'quick_action', command: 'window_right' } },
+                { label: { zh: '居中', en: 'Center' }, icon: 'window-center', theme: 'window-center', message: { action: 'quick_action', command: 'window_center' } },
             ],
         },
     ]);
+
+    function normalizeLanguage(language) {
+        return language === 'en' ? 'en' : 'zh';
+    }
+
+    function localizeDeckGroups(language = 'zh') {
+        const lang = normalizeLanguage(language);
+        return DECK_GROUP_DEFINITIONS.map((group) => ({
+            title: group.title[lang],
+            actions: group.actions.map((item) => ({
+                ...item,
+                label: item.label[lang],
+            })),
+        }));
+    }
+
+    const DECK_GROUPS = Object.freeze(localizeDeckGroups('zh'));
 
     const ICONS = Object.freeze({
         sun: '<circle cx="12" cy="12" r="3.5"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/>',
@@ -114,10 +131,37 @@
     }
 
     class AirMacDeck extends HTMLElementBase {
+        static get observedAttributes() {
+            return ['lang'];
+        }
+
         connectedCallback() {
             if (this.shadowRoot) return;
-            const shadow = this.attachShadow({ mode: 'open' });
-            const groups = DECK_GROUPS.map((group) => `
+            this.attachShadow({ mode: 'open' });
+            const shadow = this.shadowRoot;
+            shadow.addEventListener('click', (event) => {
+                const button = event.target.closest('button[data-message]');
+                if (!button) return;
+                this.dispatchEvent(new CustomEvent('airmac-command', {
+                    bubbles: true,
+                    composed: true,
+                    detail: JSON.parse(button.dataset.message),
+                }));
+            });
+            this.render();
+        }
+
+        attributeChangedCallback() {
+            if (this.shadowRoot) this.render();
+        }
+
+        setLanguage(language) {
+            this.setAttribute('lang', normalizeLanguage(language));
+        }
+
+        render() {
+            const shadow = this.shadowRoot;
+            const groups = localizeDeckGroups(this.getAttribute('lang')).map((group) => `
                 <section>
                     <h2>${group.title}</h2>
                     <div class="grid">
@@ -165,15 +209,6 @@
                     button[data-tone="danger"] .icon { background: rgba(255,89,82,.075); border-color: rgba(255,105,97,.14); }
                     @media (prefers-reduced-motion: reduce) { button { transition: none; } }
                 </style>${groups}`;
-            shadow.addEventListener('click', (event) => {
-                const button = event.target.closest('button[data-message]');
-                if (!button) return;
-                this.dispatchEvent(new CustomEvent('airmac-command', {
-                    bubbles: true,
-                    composed: true,
-                    detail: JSON.parse(button.dataset.message),
-                }));
-            });
         }
     }
 
@@ -182,5 +217,5 @@
         if (!customElements.get('airmac-deck')) customElements.define('airmac-deck', AirMacDeck);
     }
 
-    return { DECK_GROUPS, ICONS, AirMacStatus, AirMacDeck };
+    return { DECK_GROUPS, ICONS, localizeDeckGroups, AirMacStatus, AirMacDeck };
 }));

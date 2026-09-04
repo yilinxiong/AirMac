@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { DECK_GROUPS, ICONS } = require('../ui_components.js');
+const { DECK_GROUPS, ICONS, localizeDeckGroups } = require('../ui_components.js');
 
 test('quick deck exposes only fixed protocol messages', () => {
     const actions = DECK_GROUPS.flatMap((group) => group.actions);
@@ -33,4 +33,26 @@ test('quick deck exposes only fixed protocol messages', () => {
         assert.deepEqual(Object.keys(item.message).sort(),
             item.message.command ? ['action', 'command'] : ['action']);
     }
+});
+
+test('quick deck labels can switch to English without changing messages', () => {
+    const zhActions = DECK_GROUPS.flatMap((group) => group.actions);
+    const enGroups = localizeDeckGroups('en');
+    const enActions = enGroups.flatMap((group) => group.actions);
+
+    assert.equal(enGroups[0].title, 'Power & Login');
+    assert.equal(enGroups[1].title, 'Quick Menu');
+    assert.equal(enGroups.at(-1).title, 'Windows');
+    assert.deepEqual(
+        enGroups[0].actions.map((item) => item.label),
+        ['Wake', 'Lock Mac', 'Display Sleep'],
+    );
+    assert.equal(
+        enActions.find((item) => item.message.command === 'close_fullscreen').label,
+        'Quit Fullscreen',
+    );
+    assert.deepEqual(
+        enActions.map((item) => item.message),
+        zhActions.map((item) => item.message),
+    );
 });

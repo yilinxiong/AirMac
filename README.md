@@ -44,6 +44,7 @@ bash -n install_service.sh uninstall_service.sh tools/generate_pwa_icons.sh
 - Three-finger Mission Control and desktop switching
 - Four-finger upward swipe to open Launchpad or the macOS Apps interface
 - AirMac Deck tabs for trackpad, fixed quick actions, and text input
+- Compact Chinese/English language switcher with the preference saved on device
 - Live connection/latency indicator and persisted sensitivity, scroll, gesture,
   motion, and power preferences
 - Window tiling, volume, brightness, screenshot-to-clipboard, lock, sleep, and
@@ -101,9 +102,11 @@ Open the URL printed by AirMac in iPhone Safari. On first use, name the phone, r
 The mobile interface has three bottom tabs. **Pad** keeps the largest possible
 touch surface, **Deck** contains fixed macOS shortcuts, and **Text** contains both
 confirmed long-text projection and the live keyboard. The top status pill reports
-connection state and smoothed heartbeat latency. Open the command button in the
-top-right corner to tune pointer/scroll speed, scroll direction, gesture mapping,
-touch feedback, reduced motion, and low-power mode; preferences stay on the phone.
+connection state and smoothed heartbeat latency. Use the small language button in
+the top-right corner to switch between Chinese and English; the preference stays
+on the phone. Open the command button next to it to tune pointer/scroll speed,
+scroll direction, gesture mapping, touch feedback, reduced motion, and low-power
+mode.
 The Deck **Quick Menu** group contains one-tap Control Center, Apps, Mission
 Control, playback, fullscreen, and quit-fullscreen-app actions. Quit Fullscreen App
 uses macOS Accessibility state plus an exact display-bounds fallback and does
@@ -209,6 +212,7 @@ AirMac 不保存或传输 Mac 登录密码，也不会把 iPhone 的触控 ID/�
 - 三指调度中心及桌面切换
 - 四指上滑打开 Launchpad 或新版 macOS Apps 应用界面
 - AirMac Deck 三页布局：触控板、快捷台与文本输入
+- 紧凑的中英切换按钮，语言偏好保存在手机本地
 - 实时连接/延迟状态，以及可保存的灵敏度、滚动、手势、动态效果和功耗设置
 - 窗口平铺、音量、亮度、截屏到剪贴板、锁定、息屏与唤醒快捷动作
 - 一键打开控制中心，以及循环切换可用音频输出设备
@@ -262,8 +266,9 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --ws-max-size 65536 --log-config log
 
 手机界面底部包含三个页面：“触控板”保留最大触摸区域，“快捷台”放置固定且经过协议
 校验的 macOS 动作，“文本”集中长文本投射与实时键盘。顶部状态胶囊显示连接状态和经过
-平滑处理的心跳延迟；右上角命令按钮可以调整指针/滚动速度、滚动方向、三/四指映射、
-触点反馈、减少动态效果和低功耗模式，设置只保存在手机本地。
+平滑处理的心跳延迟；右上角的小语言按钮可以在中文和英文之间切换，偏好保存在手机本地。
+旁边的命令按钮可以调整指针/滚动速度、滚动方向、三/四指映射、触点反馈、减少动态效果
+和低功耗模式。
 快捷台的“快捷菜单”分组包含一键控制中心、Apps、调度中心、播放、全屏和退出全屏应用；
 控制中心按钮使用 macOS 全局 `Fn-C` 快捷键，因此当前应用处于全屏 Space 时仍可使用。
 “退出全屏应用”通过 macOS 辅助功能状态和严格的显示器边界后备检测检查聚焦窗口；

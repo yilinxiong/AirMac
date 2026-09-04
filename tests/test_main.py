@@ -135,6 +135,8 @@ def test_frontend_is_not_cached(app_client: tuple[Any, ...]) -> None:
     assert '<dialog class="settings-dialog"' not in response.text
     assert 'id="settings-overlay" hidden' in response.text
     assert 'id="settings-close"' in response.text
+    assert 'id="language-toggle"' in response.text
+    assert "/ui_components.js?v=15" in response.text
     text_view_end = response.text.index(
         "</section>", response.text.index('id="text-view"')
     )

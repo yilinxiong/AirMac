@@ -133,7 +133,7 @@ def test_close_fullscreen_window_uses_command_w_after_accessibility_check(
         ("application", mac_controller.AX.kAXFocusedWindowAttribute): "window",
         ("window", mac_controller.AX_FULLSCREEN_ATTRIBUTE): True,
     }
-    closed: list[bool] = []
+    key_events: list[tuple[int, int]] = []
 
     monkeypatch.setattr(
         mac_controller.AX, "AXUIElementCreateSystemWide", lambda: "system"
@@ -146,11 +146,16 @@ def test_close_fullscreen_window_uses_command_w_after_accessibility_check(
             values[(element, attribute)],
         ),
     )
+    monkeypatch.setattr(controller, "_read_ax_value", lambda *_: None)
     monkeypatch.setattr(controller, "_frontmost_window_fills_display", lambda: False)
-    monkeypatch.setattr(controller, "_close_front_window", lambda: closed.append(True))
+    monkeypatch.setattr(
+        controller,
+        "_post_key_code",
+        lambda key_code, flags: key_events.append((key_code, flags)),
+    )
 
     assert controller._close_fullscreen_window() == "closed"
-    assert closed == [True]
+    assert key_events == [(13, mac_controller.Quartz.kCGEventFlagMaskCommand)]
 
 
 def test_close_fullscreen_window_ignores_regular_window(
@@ -162,7 +167,7 @@ def test_close_fullscreen_window_ignores_regular_window(
         ("application", mac_controller.AX.kAXFocusedWindowAttribute): "window",
         ("window", mac_controller.AX_FULLSCREEN_ATTRIBUTE): False,
     }
-    closed: list[bool] = []
+    key_events: list[tuple[int, int]] = []
 
     monkeypatch.setattr(
         mac_controller.AX, "AXUIElementCreateSystemWide", lambda: "system"
@@ -175,28 +180,84 @@ def test_close_fullscreen_window_ignores_regular_window(
             values[(element, attribute)],
         ),
     )
+    monkeypatch.setattr(controller, "_read_ax_value", lambda *_: None)
     monkeypatch.setattr(controller, "_frontmost_window_fills_display", lambda: False)
-    monkeypatch.setattr(controller, "_close_front_window", lambda: closed.append(True))
+    monkeypatch.setattr(
+        controller,
+        "_post_key_code",
+        lambda key_code, flags: key_events.append((key_code, flags)),
+    )
 
     assert controller._close_fullscreen_window() == "ignored"
-    assert closed == []
+    assert key_events == []
 
 
 def test_close_fullscreen_window_falls_back_to_display_bounds(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     controller = MacController()
-    closed: list[bool] = []
+    key_events: list[tuple[int, int]] = []
     monkeypatch.setattr(
         mac_controller.AX,
         "AXUIElementCopyAttributeValue",
         lambda *_: (mac_controller.AX.kAXErrorCannotComplete, None),
     )
     monkeypatch.setattr(controller, "_frontmost_window_fills_display", lambda: True)
-    monkeypatch.setattr(controller, "_close_front_window", lambda: closed.append(True))
+    monkeypatch.setattr(
+        controller,
+        "_post_key_code",
+        lambda key_code, flags: key_events.append((key_code, flags)),
+    )
 
     assert controller._close_fullscreen_window() == "closed"
-    assert closed == [True]
+    assert key_events == [(13, mac_controller.Quartz.kCGEventFlagMaskCommand)]
+
+
+def test_close_fullscreen_uses_accessibility_window_bounds_for_third_party_apps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    controller = MacController()
+    values = {
+        ("system", mac_controller.AX.kAXFocusedApplicationAttribute): "application",
+        ("application", mac_controller.AX.kAXFocusedWindowAttribute): "window",
+        ("window", mac_controller.AX_FULLSCREEN_ATTRIBUTE): False,
+    }
+    key_events: list[tuple[int, int]] = []
+
+    monkeypatch.setattr(
+        mac_controller.AX, "AXUIElementCreateSystemWide", lambda: "system"
+    )
+    monkeypatch.setattr(
+        mac_controller.AX,
+        "AXUIElementCopyAttributeValue",
+        lambda element, attribute, _: (
+            mac_controller.AX.kAXErrorSuccess,
+            values[(element, attribute)],
+        ),
+    )
+    monkeypatch.setattr(
+        controller,
+        "_read_ax_value",
+        lambda _, attribute, __: (
+            mac_controller.Quartz.CGPoint(0, 0)
+            if attribute == mac_controller.AX.kAXPositionAttribute
+            else mac_controller.Quartz.CGSize(1440, 900)
+        ),
+    )
+    monkeypatch.setattr(
+        controller,
+        "_rectangle_fills_active_display",
+        lambda x, y, width, height: (x, y, width, height) == (0, 0, 1440, 900),
+    )
+    monkeypatch.setattr(controller, "_frontmost_window_fills_display", lambda: False)
+    monkeypatch.setattr(
+        controller,
+        "_post_key_code",
+        lambda key_code, flags: key_events.append((key_code, flags)),
+    )
+
+    assert controller._close_fullscreen_window() == "closed"
+    assert key_events == [(13, mac_controller.Quartz.kCGEventFlagMaskCommand)]
 
 
 @pytest.mark.parametrize(("window_height", "expected"), [(900, True), (875, False)])

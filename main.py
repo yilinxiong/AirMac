@@ -520,7 +520,7 @@ def create_app(
                 auth_message.device_id,
             )
             try:
-                await controller.wake_if_display_asleep()
+                await mac_controller.wake_if_display_asleep()
             except Exception:
                 logger.exception(
                     "Unable to check display sleep state session=%s device=%s",

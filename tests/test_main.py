@@ -204,6 +204,27 @@ def test_authenticated_websocket_dispatches_valid_actions(
     assert controller.auto_wake_checks == 1
 
 
+def test_default_controller_is_used_for_auto_wake(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = DeviceStore(tmp_path / "devices.json")
+    controller = FakeController()
+    monkeypatch.setattr(main, "is_allowed_ip", lambda _: True)
+    monkeypatch.setattr(main, "MacController", lambda: controller)
+    application = main.create_app(store=store)
+    device_id, token = store.issue_device("Auto Wake Phone")
+
+    with TestClient(application) as client:
+        with authenticate_socket(client, device_id, token) as websocket:
+            websocket.send_json(
+                {"type": "authenticate", "device_id": device_id, "token": token}
+            )
+            assert websocket.receive_json() == {"type": "auth_ok"}
+
+    assert application.state.mac_controller is controller
+    assert controller.auto_wake_checks == 1
+
+
 def test_heartbeat_is_acknowledged_without_dispatch(
     app_client: tuple[Any, ...]
 ) -> None:

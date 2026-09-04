@@ -754,6 +754,7 @@ class MacController:
 
     def _close_fullscreen_window(self) -> str:
         accessibility_fullscreen = False
+        accessibility_bounds_fullscreen = False
         try:
             system = AX.AXUIElementCreateSystemWide()
             error, application = AX.AXUIElementCopyAttributeValue(
@@ -770,23 +771,60 @@ class MacController:
                     accessibility_fullscreen = (
                         error == AX.kAXErrorSuccess and bool(is_fullscreen)
                     )
+                    position = self._read_ax_value(
+                        window,
+                        AX.kAXPositionAttribute,
+                        AX.kAXValueCGPointType,
+                    )
+                    size = self._read_ax_value(
+                        window,
+                        AX.kAXSizeAttribute,
+                        AX.kAXValueCGSizeType,
+                    )
+                    if position is not None and size is not None:
+                        accessibility_bounds_fullscreen = (
+                            self._rectangle_fills_active_display(
+                                position.x,
+                                position.y,
+                                size.width,
+                                size.height,
+                            )
+                        )
         except Exception:
             logger.debug("Unable to read accessibility fullscreen state", exc_info=True)
 
         bounds_fullscreen = self._frontmost_window_fills_display()
-        if not accessibility_fullscreen and not bounds_fullscreen:
+        if not (
+            accessibility_fullscreen
+            or accessibility_bounds_fullscreen
+            or bounds_fullscreen
+        ):
             logger.info(
                 "Ignored close-fullscreen request: focused window is not fullscreen"
             )
             return "ignored"
 
-        self._close_front_window()
+        self._post_key_code(13, Quartz.kCGEventFlagMaskCommand)
         logger.info(
-            "Closed focused fullscreen window accessibility=%s bounds=%s",
+            "Closed focused fullscreen window accessibility=%s "
+            "accessibility_bounds=%s window_server_bounds=%s",
             accessibility_fullscreen,
+            accessibility_bounds_fullscreen,
             bounds_fullscreen,
         )
         return "closed"
+
+    def _read_ax_value(
+        self, element: object, attribute: str, value_type: int
+    ) -> object | None:
+        error, value = AX.AXUIElementCopyAttributeValue(element, attribute, None)
+        if error != AX.kAXErrorSuccess or value is None:
+            return None
+        try:
+            success, extracted = AX.AXValueGetValue(value, value_type, None)
+            return extracted if success else None
+        except (TypeError, ValueError):
+            return None
 
     def _frontmost_window_fills_display(self) -> bool:
         application = AppKit.NSWorkspace.sharedWorkspace().frontmostApplication()
@@ -800,38 +838,39 @@ class MacController:
         window_infos = Quartz.CGWindowListCopyWindowInfo(
             options, Quartz.kCGNullWindowID
         ) or []
-        success, display_ids, count = Quartz.CGGetActiveDisplayList(16, None, None)
-        if success != 0 or count == 0:
-            return False
-
-        displays = [
-            Quartz.CGDisplayBounds(display_ids[index]) for index in range(count)
-        ]
         for info in window_infos:
             if int(info.get(Quartz.kCGWindowOwnerPID, -1)) != process_id:
                 continue
             if int(info.get(Quartz.kCGWindowLayer, -1)) != 0:
                 continue
             bounds = info.get(Quartz.kCGWindowBounds)
-            if not isinstance(bounds, dict):
+            if not hasattr(bounds, "get"):
                 continue
-            for display in displays:
-                if (
-                    abs(float(bounds.get("X", math.inf)) - display.origin.x) <= 3
-                    and abs(float(bounds.get("Y", math.inf)) - display.origin.y) <= 3
-                    and abs(float(bounds.get("Width", -1)) - display.size.width) <= 3
-                    and abs(float(bounds.get("Height", -1)) - display.size.height)
-                    <= 3
-                ):
-                    return True
+            if self._rectangle_fills_active_display(
+                float(bounds.get("X", math.inf)),
+                float(bounds.get("Y", math.inf)),
+                float(bounds.get("Width", -1)),
+                float(bounds.get("Height", -1)),
+            ):
+                return True
         return False
 
-    def _close_front_window(self) -> None:
-        self.keyboard.press(Key.cmd)
-        try:
-            self._press_and_release("w")
-        finally:
-            self.keyboard.release(Key.cmd)
+    def _rectangle_fills_active_display(
+        self, x: float, y: float, width: float, height: float
+    ) -> bool:
+        success, display_ids, count = Quartz.CGGetActiveDisplayList(16, None, None)
+        if success != 0 or count == 0:
+            return False
+        for index in range(count):
+            display = Quartz.CGDisplayBounds(display_ids[index])
+            if (
+                abs(x - display.origin.x) <= 3
+                and abs(y - display.origin.y) <= 3
+                and abs(width - display.size.width) <= 3
+                and abs(height - display.size.height) <= 3
+            ):
+                return True
+        return False
 
     def _post_key_code(self, key_code: int, flags: int) -> None:
         for is_down in (True, False):

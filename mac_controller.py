@@ -804,9 +804,9 @@ class MacController:
             )
             return "ignored"
 
-        self._post_key_code(13, Quartz.kCGEventFlagMaskCommand)
+        self._post_key_code(12, Quartz.kCGEventFlagMaskCommand)
         logger.info(
-            "Closed focused fullscreen window accessibility=%s "
+            "Requested graceful quit for focused fullscreen app accessibility=%s "
             "accessibility_bounds=%s window_server_bounds=%s",
             accessibility_fullscreen,
             accessibility_bounds_fullscreen,

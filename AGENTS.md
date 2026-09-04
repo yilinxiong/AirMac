@@ -79,7 +79,7 @@ transport confidentiality; never describe it as safe for an untrusted network.
 - The Control Center shortcut must emit only macOS's fixed global Fn-C key event.
   Close Fullscreen must verify the focused window's `AXFullScreen` value or an
   exact Accessibility/Window Server bounds match before posting a fixed Quartz
-  Command-W event; never infer fullscreen state from phone input or send an
+  Command-Q event; never infer fullscreen state from phone input or send an
   unconditional close or quit shortcut.
   Audio switching must invoke the bundled helper with the literal `cycle`
   argument; never accept a device identifier, script source, or executable path

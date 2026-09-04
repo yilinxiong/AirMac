@@ -908,7 +908,7 @@
     </div>
 
     <script src="/frontend_state.js?v=3"></script>
-    <script src="/ui_components.js?v=8"></script>
+    <script src="/ui_components.js?v=9"></script>
     <script>
         // Progressive Web App support. Service workers require a secure context;
         // plain LAN HTTP continues to work without one.
@@ -1346,11 +1346,11 @@
                     } else if (data.type === 'action_result' && data.action === 'quick_action'
                             && data.command === 'close_fullscreen') {
                         if (data.status === 'closed') {
-                            showGestureFeedback('已关闭全屏窗口');
+                            showGestureFeedback('已请求退出全屏应用');
                         } else if (data.status === 'ignored') {
                             showGestureFeedback('当前窗口不是全屏');
                         } else {
-                            showGestureFeedback('无法关闭全屏窗口');
+                            showGestureFeedback('无法退出全屏应用');
                         }
                     }
                 } catch (e) {

@@ -83,10 +83,10 @@ connection state and smoothed heartbeat latency. Open the command button in the
 top-right corner to tune pointer/scroll speed, scroll direction, gesture mapping,
 touch feedback, reduced motion, and low-power mode; preferences stay on the phone.
 The Deck **Quick Menu** group contains one-tap Control Center, Apps, Mission
-Control, playback, fullscreen, and close-fullscreen actions. Close Fullscreen
+Control, playback, fullscreen, and quit-fullscreen-app actions. Quit Fullscreen App
 uses macOS Accessibility state plus an exact display-bounds fallback and does
-nothing when the focused window is not full screen; it closes the window rather
-than force-quitting the whole app.
+nothing when the focused window is not full screen. It sends the standard
+Command-Q graceful quit, so an app can still show its normal unsaved-work prompt.
 **Switch Speaker** cycles through
 currently available Core Audio output devices and reports the selected device
 name on the phone. Wake, lock, and display sleep stay at the top of Deck;
@@ -242,10 +242,11 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --ws-max-size 65536 --log-config log
 校验的 macOS 动作，“文本”集中长文本投射与实时键盘。顶部状态胶囊显示连接状态和经过
 平滑处理的心跳延迟；右上角命令按钮可以调整指针/滚动速度、滚动方向、三/四指映射、
 触点反馈、减少动态效果和低功耗模式，设置只保存在手机本地。
-快捷台的“快捷菜单”分组包含一键控制中心、Apps、调度中心、播放、全屏和关闭全屏操作；
+快捷台的“快捷菜单”分组包含一键控制中心、Apps、调度中心、播放、全屏和退出全屏应用；
 控制中心按钮使用 macOS 全局 `Fn-C` 快捷键，因此当前应用处于全屏 Space 时仍可使用。
-“关闭全屏”通过 macOS 辅助功能状态和严格的显示器边界后备检测检查聚焦窗口；普通窗口
-会被忽略，并且该动作关闭的是当前窗口，而不是强制退出整个应用。
+“退出全屏应用”通过 macOS 辅助功能状态和严格的显示器边界后备检测检查聚焦窗口；
+普通窗口会被忽略。确认全屏后发送标准 `Command-Q` 正常退出，应用仍可显示未保存内容
+确认框，不会执行强制终止。
 “切换扬声器”会在当前可用的 Core Audio 输出设备间循环，并在手机上显示设备名称。
 唤醒、锁定和显示器睡眠位于快捷台顶部，较少使用的窗口操作位于最底部。三页共用的
 紧凑手势提示常驻底部导航栏下方。

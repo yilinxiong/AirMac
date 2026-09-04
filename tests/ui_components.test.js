@@ -18,6 +18,10 @@ test('quick deck exposes only fixed protocol messages', () => {
     assert.equal(actions.some((item) => item.message.command === 'screenshot'), true);
     assert.equal(actions.some((item) => item.message.command === 'open_control_center'), true);
     assert.equal(actions.some((item) => item.message.command === 'close_fullscreen'), true);
+    assert.equal(
+        actions.find((item) => item.message.command === 'close_fullscreen').label,
+        '退出全屏应用',
+    );
     assert.equal(actions.some((item) => item.message.command === 'open_wifi'), false);
     assert.equal(actions.some((item) => item.message.command === 'open_bluetooth'), false);
     assert.equal(actions.some((item) => item.message.command === 'open_airdrop'), false);

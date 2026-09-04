@@ -124,7 +124,7 @@ def test_quick_action_uses_fixed_quartz_shortcuts(
     ]
 
 
-def test_close_fullscreen_window_uses_command_w_after_accessibility_check(
+def test_close_fullscreen_window_uses_command_q_after_accessibility_check(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     controller = MacController()
@@ -155,7 +155,7 @@ def test_close_fullscreen_window_uses_command_w_after_accessibility_check(
     )
 
     assert controller._close_fullscreen_window() == "closed"
-    assert key_events == [(13, mac_controller.Quartz.kCGEventFlagMaskCommand)]
+    assert key_events == [(12, mac_controller.Quartz.kCGEventFlagMaskCommand)]
 
 
 def test_close_fullscreen_window_ignores_regular_window(
@@ -210,7 +210,7 @@ def test_close_fullscreen_window_falls_back_to_display_bounds(
     )
 
     assert controller._close_fullscreen_window() == "closed"
-    assert key_events == [(13, mac_controller.Quartz.kCGEventFlagMaskCommand)]
+    assert key_events == [(12, mac_controller.Quartz.kCGEventFlagMaskCommand)]
 
 
 def test_close_fullscreen_uses_accessibility_window_bounds_for_third_party_apps(
@@ -257,7 +257,7 @@ def test_close_fullscreen_uses_accessibility_window_bounds_for_third_party_apps(
     )
 
     assert controller._close_fullscreen_window() == "closed"
-    assert key_events == [(13, mac_controller.Quartz.kCGEventFlagMaskCommand)]
+    assert key_events == [(12, mac_controller.Quartz.kCGEventFlagMaskCommand)]
 
 
 @pytest.mark.parametrize(("window_height", "expected"), [(900, True), (875, False)])

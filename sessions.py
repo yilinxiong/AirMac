@@ -28,6 +28,8 @@ class ActiveSession:
     last_activity: float = field(default_factory=time.monotonic)
     projection_ids: deque[str] = field(default_factory=lambda: deque(maxlen=128))
     closing: bool = False
+    close_code: int | None = None
+    close_reason: str | None = None
     send_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     owner: asyncio.Task | None = field(default_factory=asyncio.current_task)
 
@@ -91,8 +93,12 @@ class SessionRegistry:
         if old_session and old_session.transport is not session.transport:
             try:
                 if old_session.device_id == session.device_id:
+                    old_session.close_code = 4010
+                    old_session.close_reason = "replaced"
                     await asyncio.wait_for(old_session.transport.close(4010, "replaced"), 1)
                 else:
+                    old_session.close_code = 4004
+                    old_session.close_reason = "idle_timeout"
                     await asyncio.wait_for(old_session.transport.close(4004, "idle_timeout"), 1)
             except (TransportDisconnected, TimeoutError):
                 pass
@@ -130,6 +136,8 @@ class SessionRegistry:
 
     async def disconnect(self, session: ActiveSession, code: int, reason: str) -> None:
         session.closing = True
+        session.close_code = code
+        session.close_reason = reason
         try:
             await asyncio.wait_for(session.transport.close(code, reason), 0.25)
         except (TransportDisconnected, TimeoutError):

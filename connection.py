@@ -300,6 +300,10 @@ class ConnectionHandler:
             )
         except asyncio.CancelledError:
             if session and session.closing:
+                self.last_disconnect_category = disconnect_category(
+                    session.close_code or 1005
+                )
+            elif session:
                 self.last_disconnect_category = "server_closed"
             raise
         finally:

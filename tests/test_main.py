@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import asyncio
+import json
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -35,6 +38,23 @@ class FakeController:
     async def dispatch(self, action: Any, notify: Any) -> bool:
         self.actions.append(action)
         return True
+
+    def snapshot_metrics(self) -> dict[str, int]:
+        return {"pointer_depth": 0, "control_depth": 0}
+
+
+class FakePairingManager:
+    async def start(self, device_name: str, client_ip: str):
+        return SimpleNamespace(
+            challenge_id="challenge_identifier_1",
+            expires_at=asyncio.get_running_loop().time() + 120,
+        )
+
+    async def complete(self, challenge_id: str, code: str, client_ip: str):
+        return "device-id", "secret-token", "Test Phone"
+
+    async def close(self) -> None:
+        pass
 
 
 class CompletingController(FakeController):
@@ -72,6 +92,7 @@ def app_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     store = DeviceStore(tmp_path / "devices.json")
     controller = FakeController()
     monkeypatch.setattr(main, "is_allowed_ip", lambda _: True)
+    monkeypatch.setattr(main, "is_loopback_ip", lambda _: True)
     application = main.create_app(store=store, controller=controller)
     with TestClient(application) as client:
         yield client, store, controller
@@ -179,6 +200,87 @@ def test_health_endpoint_is_sanitized(app_client: tuple[Any, ...]) -> None:
     response = client.get("/api/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "controller": "idle"}
+
+
+def test_http_responses_include_browser_security_headers(
+    app_client: tuple[Any, ...]
+) -> None:
+    client, _, _ = app_client
+    response = client.get("/")
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["referrer-policy"] == "no-referrer"
+    csp = response.headers["content-security-policy"]
+    assert "frame-ancestors 'none'" in csp
+    assert "script-src 'self'" in csp
+
+
+def test_diagnostics_are_loopback_only_and_sanitized(
+    app_client: tuple[Any, ...]
+) -> None:
+    client, _, _ = app_client
+    response = client.get("/api/diagnostics")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert payload["version"] == "0.3.0"
+    assert payload["protocol_version"] == 2
+    assert payload["controller"] == "idle"
+    assert payload["queue_metrics"] == {
+        "pointer_depth": 0,
+        "control_depth": 0,
+    }
+    serialized = json.dumps(payload).lower()
+    for forbidden in ("device_id", "token", "client_ip", "text_content"):
+        assert forbidden not in serialized
+
+
+def test_diagnostics_reject_non_loopback_client(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(main, "is_allowed_ip", lambda _: True)
+    monkeypatch.setattr(main, "is_loopback_ip", lambda _: False)
+    application = main.create_app(
+        store=DeviceStore(tmp_path / "devices.json"), controller=FakeController()
+    )
+    with TestClient(application) as client:
+        assert client.get("/api/diagnostics").status_code == 403
+
+
+def test_pairing_posts_require_matching_origin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(main, "is_allowed_ip", lambda _: True)
+    application = main.create_app(
+        store=DeviceStore(tmp_path / "devices.json"),
+        pairing=FakePairingManager(),
+        controller=FakeController(),
+    )
+    with TestClient(application) as client:
+        payload = {"device_name": "Test Phone"}
+        assert client.post("/api/pairing/start", json=payload).status_code == 403
+        assert (
+            client.post(
+                "/api/pairing/start",
+                json=payload,
+                headers={"origin": "http://evil.example"},
+            ).status_code
+            == 403
+        )
+        accepted = client.post(
+            "/api/pairing/start",
+            json=payload,
+            headers={"origin": "http://testserver"},
+        )
+        assert accepted.status_code == 200
+        assert accepted.json()["challenge_id"] == "challenge_identifier_1"
+        completed = client.post(
+            "/api/pairing/complete",
+            json={"challenge_id": "challenge_identifier_1", "code": "123456"},
+            headers={"origin": "http://testserver"},
+        )
+        assert completed.status_code == 200
+        assert completed.json()["device_id"] == "device-id"
 
 
 def test_legacy_query_identity_is_rejected_without_retry(

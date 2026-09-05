@@ -20,6 +20,23 @@ MENUBAR_SOURCE="${PROJECT_DIR}/menubar.m"
 MENUBAR_BINARY="${PROJECT_DIR}/airmac-menubar"
 AUDIO_SWITCHER_SOURCE="${PROJECT_DIR}/audio_switcher.m"
 AUDIO_SWITCHER_BINARY="${PROJECT_DIR}/audio-switcher"
+AIRMAC_PORT_VALUE="${AIRMAC_PORT:-8000}"
+AIRMAC_LOG_LEVEL_VALUE="${AIRMAC_LOG_LEVEL:-INFO}"
+
+if ! [[ "${AIRMAC_PORT_VALUE}" =~ ^[0-9]+$ ]] \
+    || [ "${AIRMAC_PORT_VALUE}" -lt 1 ] \
+    || [ "${AIRMAC_PORT_VALUE}" -gt 65535 ]; then
+    echo "❌ AIRMAC_PORT 必须是 1–65535 之间的整数。"
+    exit 1
+fi
+
+case "${AIRMAC_LOG_LEVEL_VALUE}" in
+    DEBUG|INFO|WARNING|ERROR|CRITICAL) ;;
+    *)
+        echo "❌ AIRMAC_LOG_LEVEL 必须是 DEBUG、INFO、WARNING、ERROR 或 CRITICAL。"
+        exit 1
+        ;;
+esac
 
 if [ -x "${PROJECT_DIR}/venv/bin/python" ]; then
     PYTHON_PATH="${PROJECT_DIR}/venv/bin/python"
@@ -92,7 +109,7 @@ chmod 700 "${LOG_DIR}" "${DATA_DIR}"
 touch "${LOG_FILE}" "${LAUNCHER_LOG}" "${MENUBAR_LOG}"
 chmod 600 "${LOG_FILE}" "${LAUNCHER_LOG}" "${MENUBAR_LOG}"
 
-"${PYTHON_PATH}" - "${PLIST_PATH}" "${SERVICE_NAME}" "${PROJECT_DIR}" "${PYTHON_PATH}" "${LOG_FILE}" "${LAUNCHER_LOG}" "${RUNTIME_LOG_CONFIG}" "${MENUBAR_PLIST_PATH}" "${MENUBAR_SERVICE_NAME}" "${MENUBAR_BINARY}" "${DEVICE_STORE}" "${MENUBAR_LOG}" "${MENUBAR_AVAILABLE}" <<'PY'
+"${PYTHON_PATH}" - "${PLIST_PATH}" "${SERVICE_NAME}" "${PROJECT_DIR}" "${PYTHON_PATH}" "${LOG_FILE}" "${LAUNCHER_LOG}" "${RUNTIME_LOG_CONFIG}" "${MENUBAR_PLIST_PATH}" "${MENUBAR_SERVICE_NAME}" "${MENUBAR_BINARY}" "${DEVICE_STORE}" "${MENUBAR_LOG}" "${MENUBAR_AVAILABLE}" "${AIRMAC_PORT_VALUE}" "${AIRMAC_LOG_LEVEL_VALUE}" <<'PY'
 import json
 import os
 import plistlib
@@ -112,6 +129,8 @@ import sys
     device_store,
     menubar_log,
     menubar_available,
+    port,
+    log_level,
 ) = sys.argv[1:]
 log_configuration = {
     "version": 1,
@@ -133,12 +152,12 @@ log_configuration = {
         }
     },
     "loggers": {
-        "uvicorn": {"handlers": ["default"], "level": "INFO", "propagate": False},
-        "uvicorn.error": {"level": "INFO"},
-        "uvicorn.access": {"handlers": ["default"], "level": "INFO", "propagate": False},
-        "AirMac": {"handlers": ["default"], "level": "INFO", "propagate": False},
+        "uvicorn": {"handlers": ["default"], "level": log_level, "propagate": False},
+        "uvicorn.error": {"level": log_level},
+        "uvicorn.access": {"handlers": ["default"], "level": log_level, "propagate": False},
+        "AirMac": {"handlers": ["default"], "level": log_level, "propagate": False},
     },
-    "root": {"handlers": ["default"], "level": "INFO"},
+    "root": {"handlers": ["default"], "level": log_level},
 }
 with open(runtime_log_config, "w", encoding="utf-8") as handle:
     json.dump(log_configuration, handle, ensure_ascii=False, indent=2)
@@ -155,14 +174,18 @@ configuration = {
         "--host",
         "0.0.0.0",
         "--port",
-        "8000",
+        port,
         "--ws-max-size",
         "65536",
         "--log-config",
         runtime_log_config,
         "--no-access-log",
     ],
-    "EnvironmentVariables": {"PYTHONUNBUFFERED": "1"},
+    "EnvironmentVariables": {
+        "PYTHONUNBUFFERED": "1",
+        "AIRMAC_PORT": port,
+        "AIRMAC_LOG_LEVEL": log_level,
+    },
     "RunAtLoad": True,
     "KeepAlive": True,
     "StandardOutPath": launcher_log,
@@ -180,7 +203,9 @@ if menubar_available == "true":
             python_path,
             device_store,
             log_file,
+            port,
         ],
+        "EnvironmentVariables": {"AIRMAC_PORT": port},
         "RunAtLoad": True,
         "ProcessType": "Interactive",
         "StandardOutPath": menubar_log,
@@ -237,7 +262,7 @@ fi
 
 HEALTHY=false
 for ATTEMPT in 1 2 3 4 5 6 7 8 9 10; do
-    if curl -fsS "http://127.0.0.1:8000/api/health" >/dev/null 2>&1; then
+    if curl -fsS "http://127.0.0.1:${AIRMAC_PORT_VALUE}/api/health" >/dev/null 2>&1; then
         HEALTHY=true
         break
     fi
@@ -255,5 +280,6 @@ if [ "${MENUBAR_AVAILABLE}" = true ]; then
     echo "菜单栏：${MENUBAR_SERVICE_NAME}"
 fi
 echo "日志：${LOG_FILE}"
+echo "端口：${AIRMAC_PORT_VALUE}"
 echo "设备管理：${PYTHON_PATH} ${PROJECT_DIR}/manage_devices.py list"
 echo "====================================================="

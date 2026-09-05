@@ -12,10 +12,13 @@ import urllib.request
 from pathlib import Path
 
 from auth import DeviceStore, DeviceStoreError
+from config import AirMacSettings
 
 
 SERVICE_NAME = "com.airmac.remote"
-HEALTH_URL = "http://127.0.0.1:8000/api/health"
+SETTINGS = AirMacSettings.from_env()
+HEALTH_URL = f"{SETTINGS.loopback_base_url}/api/health"
+DIAGNOSTICS_URL = f"{SETTINGS.loopback_base_url}/api/diagnostics"
 LOG_PATH = Path.home() / "Library" / "Logs" / "AirMac" / "remote.log"
 
 
@@ -62,6 +65,30 @@ def print_service_status() -> bool:
 
 def print_diagnostics(store: DeviceStore) -> bool:
     healthy = print_service_status()
+    try:
+        with urllib.request.urlopen(DIAGNOSTICS_URL, timeout=2) as response:
+            runtime = json.load(response)
+    except (OSError, ValueError, urllib.error.URLError) as exc:
+        print(f"运行时诊断：失败（{exc}）")
+        healthy = False
+    else:
+        print(
+            f"运行时：AirMac {runtime.get('version', 'unknown')}  "
+            f"protocol={runtime.get('protocol_version', 'unknown')}  "
+            f"uptime={runtime.get('uptime_seconds', 'unknown')}s"
+        )
+        print(
+            f"事件循环最大延迟：{runtime.get('event_loop_max_lag_ms', 'unknown')}ms  "
+            f"最近断开：{runtime.get('last_disconnect_category') or '-'}"
+        )
+        queue_metrics = runtime.get("queue_metrics", {})
+        if isinstance(queue_metrics, dict):
+            print(
+                "队列："
+                + " ".join(
+                    f"{key}={value}" for key, value in sorted(queue_metrics.items())
+                )
+            )
     print(f"设备库：{store.path}")
     if store.path.exists():
         mode = stat.S_IMODE(store.path.stat().st_mode)

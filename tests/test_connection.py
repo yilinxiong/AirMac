@@ -153,6 +153,9 @@ async def test_monitor_releases_without_client_close(revoke, setup):
     try:
         await asyncio.wait_for(task, 1)
         assert transport.closed[0] == (4003 if revoke else 4004)
+        assert handler.last_disconnect_category == (
+            "device_revoked" if revoke else "idle_timeout"
+        )
         assert await handler.sessions.snapshot() is None
         assert controller.resets >= 2
     finally:

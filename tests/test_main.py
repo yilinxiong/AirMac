@@ -157,6 +157,8 @@ def test_frontend_is_not_cached(app_client: tuple[Any, ...]) -> None:
     assert 'id="settings-overlay" hidden' in response.text
     assert 'id="settings-close"' in response.text
     assert 'id="language-toggle"' in response.text
+    assert 'id="gesture-help-button"' in response.text
+    assert 'id="gesture-guide" aria-label="手势提示" hidden' in response.text
     assert "/ui_components.js?v=16" in response.text
     assert "<script>" not in response.text
     assert "<style>" not in response.text
@@ -167,9 +169,10 @@ def test_frontend_is_not_cached(app_client: tuple[Any, ...]) -> None:
     text_view_end = response.text.index(
         "</section>", response.text.index('id="text-view"')
     )
-    guide_position = response.text.index('class="gesture-guide"')
+    guide_position = response.text.index('id="gesture-guide"')
+    main_start = response.text.index("<main")
     nav_end = response.text.index("</nav>")
-    assert text_view_end < nav_end < guide_position
+    assert guide_position < main_start < text_view_end < nav_end
 
 
 def test_pwa_assets_are_served_with_safe_types(app_client: tuple[Any, ...]) -> None:

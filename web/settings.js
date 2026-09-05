@@ -12,6 +12,8 @@
     let settings = settingsStore.load();
     const settingsOverlay = document.getElementById('settings-overlay');
     const settingsButton = document.getElementById('settings-button');
+    const gestureHelpButton = document.getElementById('gesture-help-button');
+    const gestureGuide = document.getElementById('gesture-guide');
     const settingsForm = document.getElementById('settings-form');
     const pointerInput = document.getElementById('pointer-sensitivity');
     const scrollInput = document.getElementById('scroll-speed');
@@ -69,7 +71,22 @@
         gestureToastTimer = setTimeout(() => gestureToast.classList.remove('visible'), 950);
     }
 
+    function setGestureGuideVisible(visible) {
+        gestureGuide.hidden = !visible;
+        gestureHelpButton.setAttribute('aria-expanded', visible ? 'true' : 'false');
+    }
+
     applySettings();
+    gestureHelpButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        setGestureGuideVisible(gestureGuide.hidden);
+        if (navigator.vibrate) navigator.vibrate(8);
+    });
+    document.addEventListener('click', (event) => {
+        if (gestureGuide.hidden) return;
+        if (event.target === gestureHelpButton || gestureGuide.contains(event.target)) return;
+        setGestureGuideVisible(false);
+    });
     settingsButton.addEventListener('click', openSettings);
     document.getElementById('settings-close').addEventListener('click', closeSettings);
     settingsOverlay.addEventListener('click', (event) => {

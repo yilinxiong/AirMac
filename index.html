@@ -40,9 +40,14 @@
         <header class="app-header">
             <div class="brand"><strong>AirMac</strong><span>Remote Deck</span></div>
             <airmac-status id="connection-status"></airmac-status>
+            <button type="button" class="icon-button gesture-help-button" id="gesture-help-button" aria-label="显示手势提示" aria-controls="gesture-guide" aria-expanded="false">?</button>
             <button type="button" class="icon-button language-button" id="language-toggle" aria-label="Switch to English">EN</button>
             <button type="button" class="icon-button" id="settings-button" aria-label="打开设置">⌘</button>
         </header>
+        <div class="gesture-guide top-gesture-guide" id="gesture-guide" aria-label="手势提示" hidden>
+            <span data-i18n="gesture-guide-one">单指移动/点击 · 双指滚动/右键</span>
+            <span data-i18n="gesture-guide-two">三指左右切桌面 · 三/四指上滑调度/应用</span>
+        </div>
 
         <main class="views">
             <section class="view active" id="pad-view" aria-label="触控板">
@@ -96,10 +101,6 @@
                 <button type="button" class="nav-button" data-view="deck"><span class="nav-icon">◫</span><span class="nav-label">快捷台</span></button>
                 <button type="button" class="nav-button" data-view="text"><span class="nav-icon">⌨︎</span><span class="nav-label">文本</span></button>
             </nav>
-            <div class="gesture-guide" id="gesture-guide" aria-label="手势提示">
-                <span data-i18n="gesture-guide-one">单指移动/点击 · 双指滚动/右键</span>
-                <span data-i18n="gesture-guide-two">三指左右切桌面 · 三/四指上滑调度/应用</span>
-            </div>
         </footer>
 
         <input type="text" id="hidden-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />

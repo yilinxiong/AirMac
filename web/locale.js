@@ -12,6 +12,7 @@
         languageToggle.textContent = t('switchLabel');
         languageToggle.setAttribute('aria-label', t('switchAria'));
         setElementAria('settings-button', 'settingsAria');
+        setElementAria('gesture-help-button', 'gestureHelpAria');
         setElementAria('settings-close', 'closeSettingsAria');
         setElementAria('pad-view', 'padAria');
         setElementAria('deck-view', 'deckAria');

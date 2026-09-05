@@ -497,6 +497,12 @@ body {
     letter-spacing: 0.03em;
 }
 
+.gesture-help-button {
+    border-color: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.56);
+    font: 700 14px/1 -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
 .views {
     position: relative;
     flex: 1;
@@ -644,11 +650,21 @@ body {
     white-space: nowrap;
 }
 
+.top-gesture-guide {
+    flex: 0 0 auto;
+    margin-top: -5px;
+    margin-bottom: -2px;
+    pointer-events: none;
+}
+
+.top-gesture-guide[hidden] {
+    display: none;
+}
+
 .bottom-shell {
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 4px;
 }
 
 .bottom-nav {
@@ -769,7 +785,7 @@ body.low-power #trackpad, body.low-power .bottom-nav, body.low-power airmac-stat
     .bottom-nav { flex-basis: 52px; }
     .nav-button { flex-direction: row; gap: 5px; }
     .nav-icon { flex-basis: 18px; }
-    .bottom-shell { gap: 2px; }
+    .top-gesture-guide { margin-top: -4px; margin-bottom: -3px; }
     .gesture-guide { min-height: 13px; }
     .gesture-guide span { display: inline; }
     .gesture-guide span + span::before { content: " · "; }

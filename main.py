@@ -29,6 +29,7 @@ from protocol import AuthFailedMessage, TypeTextAction
 from sessions import SessionRegistry
 from transport import TransportDisconnected
 from websocket_transport import WebSocketTransport
+from web_assets import WEB_ASSETS
 
 
 logging.basicConfig(
@@ -234,6 +235,17 @@ def create_app(
                 headers={"Cache-Control": "public, max-age=86400"},
             )
         return Response(status_code=404)
+
+    @application.get("/web/{filename}")
+    async def get_web_asset(filename: str, request: Request) -> Response:
+        request_ip(request)
+        if filename not in WEB_ASSETS:
+            return Response(status_code=404)
+        return FileResponse(
+            PROJECT_DIR / "web" / filename,
+            media_type="text/css" if filename.endswith(".css") else "text/javascript",
+            headers={"Cache-Control": "no-store"},
+        )
 
     @application.get("/icons/{filename}")
     async def get_pwa_icon(filename: str, request: Request) -> Response:

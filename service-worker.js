@@ -1,9 +1,11 @@
-const CACHE_NAME = 'airmac-shell-v15';
+const CACHE_NAME = 'airmac-shell-v16';
 const OFFLINE_URL = '/offline.html';
 const SHELL_ASSETS = [
     OFFLINE_URL,
     '/frontend_state.js',
     '/ui_components.js',
+    ...['app', 'i18n', 'settings', 'background', 'credentials', 'pairing', 'connection', 'projection', 'gestures', 'locale'].map(name => `/web/${name}.js?v=16`),
+    '/web/styles.css?v=16',
     '/manifest.webmanifest',
     '/icons/apple-touch-icon.png',
     '/icons/icon-192.png',
@@ -38,7 +40,7 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    if (SHELL_ASSETS.includes(url.pathname)) {
+    if (SHELL_ASSETS.some(asset => new URL(asset, self.location.origin).pathname === url.pathname)) {
         event.respondWith(
             fetch(event.request).then((response) => {
                 const copy = response.clone();

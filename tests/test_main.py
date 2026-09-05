@@ -136,7 +136,13 @@ def test_frontend_is_not_cached(app_client: tuple[Any, ...]) -> None:
     assert 'id="settings-overlay" hidden' in response.text
     assert 'id="settings-close"' in response.text
     assert 'id="language-toggle"' in response.text
-    assert "/ui_components.js?v=15" in response.text
+    assert "/ui_components.js?v=16" in response.text
+    assert "<script>" not in response.text
+    assert "<style>" not in response.text
+    for filename in main.WEB_ASSETS:
+        assert client.get(f"/web/{filename}?v=16").status_code == 200
+    assert client.get("/web/auth.py").status_code == 404
+    assert client.get("/web/%2e%2e/auth.py").status_code == 404
     text_view_end = response.text.index(
         "</section>", response.text.index('id="text-view"')
     )

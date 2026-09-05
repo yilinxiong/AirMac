@@ -2,25 +2,19 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
-import json
 import logging
 import os
 import socket
 import time
-import uuid
-from collections import deque
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request, Response, WebSocket
 from fastapi.responses import FileResponse, HTMLResponse
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
-from starlette.websockets import WebSocketDisconnect
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from airmac_version import AIRMAC_VERSION
 from auth import (
     DeviceStore,
     PairingBusy,
@@ -29,23 +23,12 @@ from auth import (
     PairingManager,
     PairingRateLimited,
 )
+from connection import ConnectionHandler, disconnect_category
 from mac_controller import MacController
-from protocol import (
-    HEARTBEAT_INTERVAL_MS,
-    PROTOCOL_VERSION,
-    SUPPORTED_PROTOCOL_VERSIONS,
-    AuthFailedMessage,
-    AuthOkMessage,
-    ErrorMessage,
-    HeartbeatAckMessage,
-    ProtocolLimits,
-    ServerMessage,
-    TypeTextAction,
-    TypeTextResultMessage,
-    encode_server_message,
-    parse_action_message,
-    parse_auth_message,
-)
+from protocol import AuthFailedMessage, TypeTextAction
+from sessions import SessionRegistry
+from transport import TransportDisconnected
+from websocket_transport import WebSocketTransport
 
 
 logging.basicConfig(
@@ -67,12 +50,6 @@ SESSION_IDLE_TIMEOUT_SECONDS = 16.0
 SESSION_MONITOR_INTERVAL_SECONDS = 1.0
 METRICS_LOG_INTERVAL_SECONDS = 30.0
 EVENT_LOOP_LAG_WARNING_SECONDS = 0.1
-SERVER_CAPABILITIES = [
-    "typed_server_messages",
-    "text_projection",
-    "quick_deck",
-    "audio_switching",
-]
 ALLOWED_NETWORKS = tuple(
     ipaddress.ip_network(network)
     for network in (
@@ -113,16 +90,6 @@ def is_allowed_origin(websocket: WebSocket) -> bool:
     return parsed.scheme in {"http", "https"} and parsed.netloc.lower() == host.lower()
 
 
-def disconnect_category(code: int) -> str:
-    if code == 4002:
-        return "client_background"
-    if code in {1000, 1001}:
-        return "normal"
-    if code == 1005:
-        return "mobile_suspend_or_ungraceful"
-    return "network_or_abnormal"
-
-
 def request_ip(request: Request) -> str:
     if request.client is None:
         raise HTTPException(status_code=403, detail="无法识别客户端地址")
@@ -156,76 +123,6 @@ class PairingCompleteRequest(ApiModel):
     code: str = Field(pattern=r"^\d{6}$")
 
 
-@dataclass
-class ActiveSession:
-    device_id: str
-    websocket: WebSocket
-    session_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
-    last_activity: float = field(default_factory=time.monotonic)
-    projection_ids: deque[str] = field(default_factory=lambda: deque(maxlen=128))
-    closing: bool = False
-    send_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-
-
-class SessionRegistry:
-    def __init__(self, controller: MacController, idle_timeout: float) -> None:
-        self.controller = controller
-        self.idle_timeout = idle_timeout
-        self.active: ActiveSession | None = None
-        self.lock = asyncio.Lock()
-        self.completed_projections: dict[tuple[str, str], float] = {}
-
-    async def claim(self, session: ActiveSession) -> bool:
-        old_session: ActiveSession | None = None
-        async with self.lock:
-            if self.active and self.active.device_id != session.device_id:
-                age = time.monotonic() - self.active.last_activity
-                if age <= self.idle_timeout:
-                    return False
-            old_session = self.active
-            self.active = session
-        await self.controller.reset()
-        if old_session and old_session.websocket is not session.websocket:
-            try:
-                if old_session.device_id == session.device_id:
-                    await old_session.websocket.close(code=4010, reason="replaced")
-                else:
-                    await old_session.websocket.close(code=4004, reason="idle_timeout")
-            except RuntimeError:
-                pass
-        return True
-
-    async def release(self, websocket: WebSocket) -> None:
-        should_reset = False
-        async with self.lock:
-            if self.active and self.active.websocket is websocket:
-                self.active = None
-                should_reset = True
-        if should_reset:
-            await self.controller.reset()
-
-    async def snapshot(self) -> ActiveSession | None:
-        async with self.lock:
-            return self.active
-
-    async def record_projection(self, device_id: str, request_id: str) -> None:
-        now = time.monotonic()
-        async with self.lock:
-            self.completed_projections[(device_id, request_id)] = now
-            cutoff = now - 600
-            stale = [
-                key
-                for key, completed_at in self.completed_projections.items()
-                if completed_at < cutoff
-            ]
-            for key in stale:
-                self.completed_projections.pop(key, None)
-
-    async def projection_completed(self, device_id: str, request_id: str) -> bool:
-        async with self.lock:
-            return (device_id, request_id) in self.completed_projections
-
-
 def create_app(
     *,
     store: DeviceStore | None = None,
@@ -238,52 +135,20 @@ def create_app(
     pairing_manager = pairing or PairingManager(device_store)
     mac_controller = controller or MacController()
     sessions = SessionRegistry(mac_controller, session_idle_timeout)
+    connection_handler = ConnectionHandler(
+        device_store,
+        mac_controller,
+        sessions,
+        auth_timeout=AUTH_TIMEOUT_SECONDS,
+    )
 
-    async def watch_sessions() -> None:
+    async def watch_metrics() -> None:
         last_metrics_log = time.monotonic()
         last_metrics_snapshot: dict[str, int] | None = None
         while True:
             await asyncio.sleep(monitor_interval)
             now = time.monotonic()
             session = await sessions.snapshot()
-            if session and not session.closing:
-                idle_seconds = now - session.last_activity
-                if idle_seconds > session_idle_timeout:
-                    session.closing = True
-                    logger.info(
-                        "Closing idle session session=%s device=%s idle_seconds=%.1f",
-                        session.session_id,
-                        session.device_id,
-                        idle_seconds,
-                    )
-                    try:
-                        await session.websocket.close(
-                            code=4004, reason="idle_timeout"
-                        )
-                    except RuntimeError:
-                        pass
-                else:
-                    try:
-                        authorized = await asyncio.to_thread(
-                            device_store.contains, session.device_id
-                        )
-                    except Exception:
-                        logger.exception("Unable to read the paired-device database")
-                    else:
-                        if not authorized:
-                            session.closing = True
-                            logger.warning(
-                                "Disconnecting revoked device session=%s device=%s",
-                                session.session_id,
-                                session.device_id,
-                            )
-                            try:
-                                await session.websocket.close(
-                                    code=4003, reason="device_revoked"
-                                )
-                            except RuntimeError:
-                                pass
-
             if now - last_metrics_log >= METRICS_LOG_INTERVAL_SECONDS:
                 snapshot = getattr(mac_controller, "snapshot_metrics", lambda: {})()
                 if snapshot and (session is not None or snapshot != last_metrics_snapshot):
@@ -317,7 +182,11 @@ def create_app(
         await mac_controller.start()
         monitor_tasks = (
             asyncio.create_task(
-                watch_sessions(), name="airmac-session-monitor"
+                sessions.monitor(device_store, monitor_interval),
+                name="airmac-session-monitor",
+            ),
+            asyncio.create_task(
+                watch_metrics(), name="airmac-metrics-monitor"
             ),
             asyncio.create_task(
                 watch_event_loop_lag(), name="airmac-event-loop-monitor"
@@ -335,6 +204,7 @@ def create_app(
             for task in monitor_tasks:
                 task.cancel()
             await asyncio.gather(*monitor_tasks, return_exceptions=True)
+            await connection_handler.close()
             await pairing_manager.close()
             await mac_controller.stop()
 
@@ -343,6 +213,7 @@ def create_app(
     application.state.pairing_manager = pairing_manager
     application.state.mac_controller = mac_controller
     application.state.sessions = sessions
+    application.state.connection_handler = connection_handler
 
     @application.get("/")
     async def get_frontend(request: Request) -> HTMLResponse:
@@ -483,195 +354,16 @@ def create_app(
             return
 
         await websocket.accept()
+        transport = WebSocketTransport(websocket, client.host)
         if websocket.query_params.get("device_id"):
             logger.info("Rejected legacy WebSocket identity from %s", client.host)
-            await websocket.send_json(encode_server_message(AuthFailedMessage()))
-            await websocket.close(code=4003, reason="legacy_identity_not_supported")
+            try:
+                await transport.send(AuthFailedMessage())
+                await transport.close(4003, "legacy_identity_not_supported")
+            except TransportDisconnected:
+                pass
             return
-        claimed = False
-        session: ActiveSession | None = None
-        try:
-            raw_auth = await asyncio.wait_for(
-                websocket.receive_text(), timeout=AUTH_TIMEOUT_SECONDS
-            )
-            auth_message = parse_auth_message(raw_auth)
-            if auth_message.protocol_version not in SUPPORTED_PROTOCOL_VERSIONS:
-                logger.info(
-                    "Unsupported protocol client=%s version=%s",
-                    client.host,
-                    auth_message.protocol_version,
-                )
-                await websocket.send_json(
-                    encode_server_message(ErrorMessage(code="unsupported_protocol"))
-                )
-                await websocket.close(code=4011, reason="unsupported_protocol")
-                return
-            try:
-                authenticated = await asyncio.to_thread(
-                    device_store.authenticate,
-                    auth_message.device_id,
-                    auth_message.token,
-                )
-            except Exception:
-                logger.exception("Unable to read the paired-device database")
-                await websocket.close(code=1011, reason="credential_store_unavailable")
-                return
-            if not authenticated:
-                logger.warning(
-                    "WebSocket authentication failed client=%s device=%s",
-                    client.host,
-                    auth_message.device_id,
-                )
-                await websocket.send_json(encode_server_message(AuthFailedMessage()))
-                await websocket.close(code=4003, reason="authentication_failed")
-                return
-
-            session = ActiveSession(auth_message.device_id, websocket)
-            if not await sessions.claim(session):
-                logger.info(
-                    "Controller busy client=%s device=%s",
-                    client.host,
-                    auth_message.device_id,
-                )
-                await websocket.send_json(
-                    encode_server_message(ErrorMessage(code="controller_busy"))
-                )
-                await websocket.close(code=4009, reason="controller_busy")
-                return
-            claimed = True
-            try:
-                await asyncio.to_thread(device_store.touch, session.device_id)
-            except Exception:
-                logger.exception(
-                    "Unable to update last_seen device=%s", session.device_id
-                )
-            auth_ok = AuthOkMessage()
-            if auth_message.protocol_version >= PROTOCOL_VERSION:
-                auth_ok = AuthOkMessage(
-                    protocol_version=PROTOCOL_VERSION,
-                    server_version=AIRMAC_VERSION,
-                    session_id=session.session_id,
-                    capabilities=SERVER_CAPABILITIES,
-                    heartbeat_interval_ms=HEARTBEAT_INTERVAL_MS,
-                    limits=ProtocolLimits(),
-                )
-            await websocket.send_json(encode_server_message(auth_ok))
-            logger.info(
-                "WebSocket connected session=%s client=%s device=%s",
-                session.session_id,
-                client.host,
-                auth_message.device_id,
-            )
-            try:
-                await mac_controller.wake_if_display_asleep()
-            except Exception:
-                logger.exception(
-                    "Unable to check display sleep state session=%s device=%s",
-                    session.session_id,
-                    session.device_id,
-                )
-
-            async def notify(payload: ServerMessage | dict[str, object]) -> None:
-                encoded = encode_server_message(payload)
-                if (
-                    encoded.get("type") == "action_result"
-                    and encoded.get("action") == "type_text"
-                    and isinstance(encoded.get("request_id"), str)
-                ):
-                    request_id = str(encoded["request_id"])
-                    if encoded.get("status") == "ok":
-                        await sessions.record_projection(
-                            session.device_id, request_id
-                        )
-                    elif encoded.get("status") == "error":
-                        try:
-                            session.projection_ids.remove(request_id)
-                        except ValueError:
-                            pass
-                active = await sessions.snapshot()
-                if active is not session:
-                    return
-                async with session.send_lock:
-                    await websocket.send_json(encoded)
-
-            while True:
-                raw_message = await websocket.receive_text()
-                session.last_activity = time.monotonic()
-                try:
-                    action = parse_action_message(raw_message)
-                except (json.JSONDecodeError, ValidationError, ValueError):
-                    logger.warning(
-                        "Rejected invalid message session=%s client=%s device=%s bytes=%s",
-                        session.session_id,
-                        client.host,
-                        session.device_id,
-                        len(raw_message.encode("utf-8")),
-                    )
-                    await notify(ErrorMessage(code="invalid_message"))
-                    continue
-                if await sessions.snapshot() is not session:
-                    await websocket.close(code=4010, reason="replaced")
-                    return
-                if action.action == "heartbeat":
-                    await notify(HeartbeatAckMessage())
-                    continue
-                if isinstance(action, TypeTextAction):
-                    if (
-                        action.request_id in session.projection_ids
-                        or await sessions.projection_completed(
-                            session.device_id, action.request_id
-                        )
-                    ):
-                        await notify(
-                            TypeTextResultMessage(
-                                request_id=action.request_id,
-                                status="duplicate",
-                            )
-                        )
-                        continue
-                    session.projection_ids.append(action.request_id)
-                if not await mac_controller.dispatch(action, notify):
-                    logger.warning(
-                        "Input queue full session=%s action=%s device=%s",
-                        session.session_id,
-                        action.action,
-                        session.device_id,
-                    )
-                    if isinstance(action, TypeTextAction):
-                        try:
-                            session.projection_ids.remove(action.request_id)
-                        except ValueError:
-                            pass
-                        await notify(
-                            TypeTextResultMessage(
-                                request_id=action.request_id,
-                                status="error",
-                                code="queue_full",
-                            )
-                        )
-                    else:
-                        await notify(ErrorMessage(code="queue_full"))
-        except asyncio.TimeoutError:
-            logger.warning("WebSocket authentication timeout client=%s", client.host)
-            await websocket.close(code=4008, reason="authentication_timeout")
-        except (json.JSONDecodeError, ValidationError, ValueError):
-            await websocket.send_json(encode_server_message(AuthFailedMessage()))
-            await websocket.close(code=4003, reason="authentication_failed")
-        except WebSocketDisconnect as exc:
-            logger.info(
-                "WebSocket disconnected session=%s client=%s device=%s code=%s category=%s reason=%s",
-                session.session_id if session else "-",
-                client.host,
-                session.device_id if session else "unauthenticated",
-                exc.code,
-                disconnect_category(exc.code),
-                exc.reason or "-",
-            )
-        except RuntimeError as exc:
-            logger.debug("WebSocket closed during operation: %s", exc)
-        finally:
-            if claimed:
-                await sessions.release(websocket)
+        await connection_handler.handle(transport)
 
     return application
 

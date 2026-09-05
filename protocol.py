@@ -152,6 +152,7 @@ ActionMessage = Annotated[
     | TypeTextAction,
     Field(discriminator="action"),
 ]
+ClientMessage = AuthenticateMessage | ActionMessage
 
 
 class ProtocolLimits(StrictMessage):
@@ -232,6 +233,7 @@ ServerMessage = (
 
 AUTH_ADAPTER = TypeAdapter(AuthenticateMessage)
 ACTION_ADAPTER = TypeAdapter(ActionMessage)
+CLIENT_MESSAGE_ADAPTER = TypeAdapter(ClientMessage)
 SERVER_MESSAGE_ADAPTER = TypeAdapter(ServerMessage)
 
 
@@ -250,6 +252,10 @@ def parse_auth_message(raw: str) -> AuthenticateMessage:
 
 def parse_action_message(raw: str) -> ActionMessage:
     return ACTION_ADAPTER.validate_python(decode_json_message(raw))
+
+
+def parse_client_message(raw: str) -> ClientMessage:
+    return CLIENT_MESSAGE_ADAPTER.validate_python(decode_json_message(raw))
 
 
 def parse_server_message(value: object) -> ServerMessage:

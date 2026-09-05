@@ -23,18 +23,33 @@ transport confidentiality; never describe it as safe for an untrusted network.
 
 ## Source map
 
-- `main.py`: FastAPI composition, LAN/origin checks, pairing routes, WebSocket
-  authentication, single-controller session ownership, revocation monitoring,
-  health endpoint, and PWA assets.
+- `main.py`: FastAPI routes, dependency composition, lifecycle, LAN/origin checks,
+  loopback diagnostics, security headers, and the explicit PWA asset routes.
+- `config.py`: validated runtime settings. Port, authentication/session timeouts,
+  monitor cadence, log level, metrics cadence, event-loop warning threshold, and
+  asyncio debug mode belong here.
+- `connection.py`, `sessions.py`: transport-neutral authentication and connection
+  lifecycle, single-controller ownership, replacement/revocation/idle cleanup,
+  auth-failure throttling, serialized notification delivery, and the bounded
+  projection-id cache.
+- `transport.py`, `websocket_transport.py`: neutral client-transport contract and
+  its sole production WebSocket adapter. Future transports must enter through this
+  contract rather than duplicating session/authentication logic.
 - `auth.py`: pairing state and `DeviceStore`; token hashes, file locking, atomic
   replacement, permissions, expiry, rate limits, and dialog lifecycle.
-- `protocol.py`: strict discriminated Pydantic message models and 64 KiB envelope
-  limit. Add every new WebSocket action here first. `quick_action` accepts only
-  its reviewed fixed enum; never turn it into a free-form command surface.
-- `mac_controller.py`: bounded pointer/control queues, Quartz input, ordered system
-  commands, clipboard serialization, wake assertion, and forced input release.
-- `index.html`: mobile UI, pairing flow, WebSocket lifecycle, touch handling,
-  keyboard input, text projection, language switching, and install hint.
+- `protocol.py`: strict discriminated Pydantic client/server message models,
+  v1/v2 negotiation, unified server encoding, and the 64 KiB envelope limit. Add
+  every new wire action here first. `quick_action` accepts only its reviewed fixed
+  enum; never turn it into a free-form command surface.
+- `mac_controller.py`: bounded pointer/control queues, execution ordering,
+  coalescing, expiry, metrics, and injected platform-service orchestration.
+- `controller_services/`: isolated pointer, keyboard/system, clipboard, and wake
+  implementations. Preserve the two existing execution lanes and their ordering.
+- `index.html`: mobile document structure only; do not move application logic or
+  styles back inline.
+- `web/`: build-free UMD modules for styles, translations, pairing, credentials,
+  connection lifecycle, gestures, text projection, settings, background handling,
+  locale, and startup. They must remain browser-loadable and Node-testable.
 - `frontend_state.js`: browser/Node-compatible state machines for reconnects,
   projection, gestures, preferences, and latency. Put isolated logic here and
   unit test it.
@@ -46,6 +61,8 @@ transport confidentiality; never describe it as safe for an untrusted network.
 - `menubar.m`: native AppKit status item. It invokes `manage_devices.py` through
   argv; do not duplicate or directly mutate the credential format.
 - `manage_devices.py`: local CLI for list, revoke, clear, status, and diagnostics.
+- `diagnostics.py`: sanitized uptime, queue, event-loop, controller, and disconnect
+  snapshots. Never add identifiers, addresses, credentials, or text payloads.
 - `pairing_dialog.py`: fixed Cocoa dialog source. Device names are argv data, never
   interpolated into AppleScript or source strings.
 - `install_service.sh` / `uninstall_service.sh`: LaunchAgent lifecycle.
@@ -65,6 +82,8 @@ transport confidentiality; never describe it as safe for an untrusted network.
 - Keep the device directory at mode `700`, database/lock files at `600`, and write
   the database atomically under an exclusive lock.
 - Continue rejecting non-LAN addresses and mismatched/missing WebSocket origins.
+- Pairing POSTs must also carry an Origin matching Host. `/api/diagnostics` remains
+  loopback-only and its schema must not expose device IDs, IPs, tokens, or text.
 - Do not read, migrate, or delete legacy `whitelist.json` automatically.
 - Revoking a device must disconnect its active session within roughly one second.
 
@@ -75,6 +94,12 @@ transport confidentiality; never describe it as safe for an untrusted network.
 - Keep the 64 KiB WebSocket message limit, move range `±500`, scroll range
   `±1000`, key text limit 16 characters, and projection limit 32 KiB UTF-8 unless
   a reviewed protocol change deliberately updates tests and documentation.
+- Protocol v1 clients (authentication frames without `protocol_version`) remain
+  accepted. Current web clients send v2. Unsupported versions receive the fixed
+  `unsupported_protocol` error before any controller claim or action.
+- `ActiveSession` and connection handling must depend on `ClientTransport`, never
+  FastAPI's `WebSocket`. Transport adapters may not own authentication, controller
+  leases, idempotency, revocation, or forced-release policy.
 - Never block the asyncio event loop with Quartz, clipboard, AppleScript, process,
   or keyboard work. Use the existing executors/async subprocess helpers.
 - The Control Center shortcut must emit only macOS's fixed global Fn-C key event.
@@ -120,11 +145,17 @@ transport confidentiality; never describe it as safe for an untrusted network.
 
 - Wake uses a managed, nonblocking `caffeinate -d -u -t 30` assertion and a delayed
   Shift key. It must not bypass the macOS lock screen or password policy.
+- The installed server defaults to a process-scoped `caffeinate -s -w PID`
+  assertion. It prevents AC-powered idle/deep sleep so the HTTP endpoint remains
+  reachable while still allowing display sleep and locking; it is ineffective on
+  battery and may be disabled by `AIRMAC_KEEP_REACHABLE_ON_AC=0`. Never replace
+  it with an always-on battery `-i` assertion.
 - After WebSocket authentication, check `CGDisplayIsAsleep` and invoke wake only
   when the main display is asleep. An already-awake connection must not refresh
   the user's idle timer.
-- The assertion intentionally outlives a normal phone WebSocket disconnect for its
-  bounded 30-second duration, but is stopped on service shutdown/replacement.
+- The display assertion intentionally outlives a normal phone WebSocket disconnect
+  for its bounded 30-second duration, but is stopped on service shutdown/replacement.
+  The separate AC reachability assertion follows the server process lifecycle.
 - Plain LAN HTTP may not support Service Workers. PWA registration must remain
   optional and must never block normal remote-control startup.
 - When changing a frontend script, bump both its query version in `index.html`
@@ -146,10 +177,9 @@ transport confidentiality; never describe it as safe for an untrusted network.
 
    ```bash
    venv/bin/python -m pytest -q
-   node --test tests/frontend_state.test.js tests/ui_components.test.js
-   venv/bin/python -m compileall -q main.py auth.py protocol.py mac_controller.py manage_devices.py pairing_dialog.py tests
-   sed -n '/^[[:space:]]*<script>$/,/^[[:space:]]*<\/script>$/p' index.html | sed '1d;$d' | node --check -
-   node --check service-worker.js
+   node --test tests/*.test.js
+   venv/bin/python -m compileall -q main.py auth.py protocol.py airmac_version.py config.py diagnostics.py connection.py sessions.py transport.py websocket_transport.py web_assets.py mac_controller.py controller_services manage_devices.py pairing_dialog.py tests
+   for file in frontend_state.js ui_components.js service-worker.js web/*.js; do node --check "$file"; done
    venv/bin/python -m json.tool manifest.webmanifest >/dev/null
    bash -n install_service.sh uninstall_service.sh tools/generate_pwa_icons.sh
    venv/bin/python -m pip check
@@ -191,8 +221,11 @@ transport confidentiality; never describe it as safe for an untrusted network.
 - Menu-bar LaunchAgent: `com.airmac.remote.menubar`
 - Default server: `http://0.0.0.0:8000` (phone uses the Mac's private LAN IP)
 - Health check: `http://127.0.0.1:8000/api/health`
+- Local diagnostics: `http://127.0.0.1:8000/api/diagnostics`
+- Override the server/installer/menu-bar/CLI port together with `AIRMAC_PORT`.
 - Device store: `~/Library/Application Support/AirMac/authorized_devices.json`
 - Runtime logging config: `~/Library/Application Support/AirMac/logging_config.json`
+- Installed runtime settings: `~/Library/Application Support/AirMac/runtime.json`
 - Main log: `~/Library/Logs/AirMac/remote.log`
 - Launcher log: `~/Library/Logs/AirMac/launcher.log`
 - Menu-bar log: `~/Library/Logs/AirMac/menubar.log`

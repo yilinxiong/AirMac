@@ -15,6 +15,89 @@ async def noop_notify(_: dict[str, object]) -> None:
     pass
 
 
+@pytest.mark.asyncio
+async def test_injected_platform_services_handle_actions_without_native_io() -> None:
+    calls: list[tuple[str, object]] = []
+
+    class PointerService:
+        def execute(self, message: object) -> None:
+            calls.append(("pointer", getattr(message, "action")))
+
+        def release(self) -> None:
+            calls.append(("pointer", "release"))
+
+    class ClipboardService:
+        async def auto_copy(self, item: object) -> None:
+            calls.append(("clipboard", "copy"))
+
+        async def type_text(self, text: str) -> None:
+            calls.append(("clipboard", text))
+
+    class SystemService:
+        def execute_keyboard(self, message: object) -> None:
+            calls.append(("system", getattr(message, "action")))
+
+        def execute_quick_action(self, command: str) -> None:
+            calls.append(("system", command))
+
+        def close_fullscreen(self) -> str:
+            return "ignored"
+
+        def release_modifiers(self) -> None:
+            calls.append(("system", "release"))
+
+    class WakeService:
+        async def wake_if_display_asleep(self) -> bool:
+            calls.append(("wake", "check"))
+            return True
+
+        async def wake(self) -> None:
+            calls.append(("wake", "wake"))
+
+        async def stop(self) -> None:
+            calls.append(("wake", "stop"))
+
+    controller = MacController(
+        pointer_service=PointerService(),
+        clipboard_service=ClipboardService(),
+        system_service=SystemService(),
+        wake_service=WakeService(),
+    )
+    await controller.start()
+    try:
+        assert await controller.wake_if_display_asleep()
+        assert await controller.dispatch(
+            parse_action_message('{"action":"move","dx":1,"dy":2}'), noop_notify
+        )
+        assert await controller.dispatch(
+            parse_action_message(
+                '{"action":"type_text","request_id":"request_1","text":"hello"}'
+            ),
+            noop_notify,
+        )
+        assert await controller.dispatch(
+            parse_action_message(
+                '{"action":"quick_action","command":"volume_mute"}'
+            ),
+            noop_notify,
+        )
+        await asyncio.wait_for(controller.control_queue.join(), timeout=1)
+        for _ in range(100):
+            if ("pointer", "move") in calls:
+                break
+            await asyncio.sleep(0.001)
+    finally:
+        await controller.stop()
+
+    assert ("wake", "check") in calls
+    assert ("pointer", "move") in calls
+    assert ("clipboard", "hello") in calls
+    assert ("system", "volume_mute") in calls
+    assert ("pointer", "release") in calls
+    assert ("system", "release") in calls
+    assert ("wake", "stop") in calls
+
+
 class FakeProcess:
     def __init__(self) -> None:
         self.returncode: int | None = None
@@ -37,6 +120,31 @@ class FakeProcess:
 
     def kill(self) -> None:
         self.terminate()
+
+
+@pytest.mark.asyncio
+async def test_ac_reachability_assertion_follows_controller_lifecycle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    controller = MacController(keep_reachable_on_ac=True)
+    process = FakeProcess()
+    calls: list[tuple[object, ...]] = []
+
+    async def fake_create_subprocess_exec(*args: object, **_: object) -> FakeProcess:
+        calls.append(args)
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
+    monkeypatch.setattr(mac_controller.os, "getpid", lambda: 4242)
+    monkeypatch.setattr(controller, "_release_pointer", lambda: None)
+    monkeypatch.setattr(controller, "_release_modifiers", lambda: None)
+
+    await controller.start()
+    assert calls == [("caffeinate", "-s", "-w", "4242")]
+    assert controller.reachability_assertion_active
+    await controller.stop()
+    assert process.terminated
+    assert not controller.reachability_assertion_active
 
 
 @pytest.mark.asyncio

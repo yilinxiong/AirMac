@@ -5,7 +5,6 @@
 #import <unistd.h>
 
 static NSString *const AMServiceName = @"com.airmac.remote";
-static NSString *const AMHealthURL = @"http://127.0.0.1:8000/api/health";
 
 @interface AMMenuBarController : NSObject <NSApplicationDelegate, NSMenuDelegate>
 @property(nonatomic, strong) NSStatusItem *statusItem;
@@ -14,6 +13,7 @@ static NSString *const AMHealthURL = @"http://127.0.0.1:8000/api/health";
 @property(nonatomic, copy) NSString *pythonExecutable;
 @property(nonatomic, copy) NSString *deviceStorePath;
 @property(nonatomic, copy) NSString *logPath;
+@property(nonatomic, copy) NSString *port;
 @property(nonatomic, copy) NSString *healthStatus;
 @property(nonatomic, copy) NSString *controllerStatus;
 @property(nonatomic, strong) NSArray<NSDictionary *> *devices;
@@ -37,6 +37,8 @@ static NSString *const AMHealthURL = @"http://127.0.0.1:8000/api/health";
     _logPath = arguments.count > 4
         ? arguments[4]
         : [home stringByAppendingPathComponent:@"Library/Logs/AirMac/remote.log"];
+    NSString *environmentPort = NSProcessInfo.processInfo.environment[@"AIRMAC_PORT"];
+    _port = arguments.count > 5 ? arguments[5] : (environmentPort.length ? environmentPort : @"8000");
     _healthStatus = @"unknown";
     _controllerStatus = @"idle";
     _devices = @[];
@@ -89,7 +91,8 @@ static NSString *const AMHealthURL = @"http://127.0.0.1:8000/api/health";
 }
 
 - (void)refreshHealth {
-    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:AMHealthURL]];
+    NSString *healthURL = [NSString stringWithFormat:@"http://127.0.0.1:%@/api/health", self.port];
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:healthURL]];
     request.timeoutInterval = 2;
     __weak typeof(self) weakSelf = self;
     NSURLSessionDataTask *task = [NSURLSession.sharedSession
@@ -217,11 +220,12 @@ static NSString *const AMHealthURL = @"http://127.0.0.1:8000/api/health";
 }
 
 - (void)openController {
-    [NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:@"http://127.0.0.1:8000/"]];
+    NSString *address = [NSString stringWithFormat:@"http://127.0.0.1:%@/", self.port];
+    [NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:address]];
 }
 
 - (void)copyControllerAddress {
-    NSString *address = [NSString stringWithFormat:@"http://%@:8000", [self preferredLANAddress]];
+    NSString *address = [NSString stringWithFormat:@"http://%@:%@", [self preferredLANAddress], self.port];
     [NSPasteboard.generalPasteboard clearContents];
     [NSPasteboard.generalPasteboard setString:address forType:NSPasteboardTypeString];
 }

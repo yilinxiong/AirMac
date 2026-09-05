@@ -1,0 +1,776 @@
+:root {
+    --glass-bg: rgba(255, 255, 255, 0.05);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --glass-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    --neu-inner: inset 4px 4px 10px rgba(0, 0, 0, 0.4), inset -4px -4px 10px rgba(255, 255, 255, 0.06);
+}
+
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    position: fixed;
+    background-color: #1c1c1e;
+    color: #ffffff;
+    font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-weight: 400;
+    overflow: hidden;
+    overscroll-behavior-y: contain;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+#matrixCanvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -2;
+    pointer-events: none;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: 100%;
+    padding: calc(env(safe-area-inset-top) + 15px) 20px calc(env(safe-area-inset-bottom) + 15px) 20px;
+    box-sizing: border-box;
+    gap: 20px;
+    z-index: 1;
+}
+
+/* Top Controls: Glass Tiles */
+.controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.glass-btn {
+    flex: 1;
+    aspect-ratio: 1 / 1;
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    box-shadow: var(--glass-shadow);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.glass-btn:active {
+    transform: scale(0.92);
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.glass-btn svg {
+    width: 26px;
+    height: 26px;
+    stroke-width: 1.5;
+}
+
+/* Media Button remains circular but matches unified style */
+#media-btn {
+    border-radius: 50%;
+}
+
+/* Trackpad - Unified Native Glass */
+#trackpad {
+    flex: 1;
+    position: relative;
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    box-shadow: var(--glass-shadow);
+    z-index: 1;
+}
+
+/* Etching Mark inside Trackpad */
+.etching {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    opacity: 0.15;
+    color: #ffffff;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.etching svg {
+    width: 36px;
+    height: 36px;
+    stroke-width: 1.2;
+}
+
+.etching span {
+    font-size: 13px;
+    letter-spacing: 4px;
+    font-weight: 300;
+}
+
+.status-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    pointer-events: none;
+    z-index: 3;
+    position: absolute;
+    bottom: 30px;
+}
+
+.hint {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 15px;
+    font-weight: 400;
+    letter-spacing: 1px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.spinner {
+    display: none;
+    width: 14px;
+    height: 14px;
+    border: 2px dotted rgba(255,255,255,0.6);
+    border-top: 2px solid transparent;
+    border-radius: 50%;
+    animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Projection Bar */
+.projection-bar {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.projection-input-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+
+.projection-bar textarea {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    height: 52px;
+    min-height: 52px;
+    max-height: 104px;
+    padding: 15px 46px 15px 18px;
+    border-radius: 24px;
+    border: 1px solid var(--glass-border);
+    background: rgba(0,0,0,0.2);
+    box-shadow: inset 4px 4px 10px rgba(0,0,0,0.4), inset -2px -2px 6px rgba(255,255,255,0.04);
+    color: #ffffff;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.3s;
+    resize: none;
+    font-family: inherit;
+    line-height: 20px;
+}
+
+.projection-bar textarea::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+    font-weight: 300;
+}
+
+.projection-bar textarea:focus {
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.projection-bar textarea:read-only {
+    opacity: 0.65;
+}
+
+/* Unified Send Button */
+.send-btn {
+    width: 52px;
+    height: 52px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: var(--glass-shadow);
+    transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.send-btn:active {
+    transform: scale(0.92);
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.send-btn:disabled,
+.clear-btn:disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.clear-btn {
+    position: absolute;
+    top: 12px;
+    right: 10px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 0;
+    padding: 0;
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.68);
+    font-size: 19px;
+    font-weight: 300;
+    line-height: 1;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: opacity 0.15s, background 0.15s;
+}
+
+.clear-btn:active {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.projection-input-wrap textarea:placeholder-shown + .clear-btn {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.send-btn svg {
+    width: 22px;
+    height: 22px;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    margin-left: -2px;
+    margin-top: 1px;
+}
+
+#hidden-input {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+    z-index: -1;
+}
+
+.pairing-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    box-sizing: border-box;
+    background: rgba(10, 10, 12, 0.72);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+}
+
+.pairing-overlay.hidden {
+    display: none;
+}
+
+.pairing-card {
+    width: min(100%, 360px);
+    padding: 28px;
+    border-radius: 28px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(36, 36, 40, 0.94);
+    box-shadow: 0 20px 70px rgba(0, 0, 0, 0.45);
+    box-sizing: border-box;
+    text-align: center;
+}
+
+.pairing-card h1 {
+    margin: 0 0 10px;
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.pairing-card p {
+    margin: 0 0 20px;
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.pairing-card input {
+    width: 100%;
+    margin-bottom: 14px;
+    padding: 14px 16px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 14px;
+    box-sizing: border-box;
+    background: rgba(0, 0, 0, 0.24);
+    color: white;
+    font-size: 17px;
+    text-align: center;
+    outline: none;
+}
+
+.pairing-card .hidden {
+    display: none;
+}
+
+#pairing-code {
+    font-size: 24px;
+    letter-spacing: 8px;
+    font-variant-numeric: tabular-nums;
+}
+
+.pairing-card button {
+    width: 100%;
+    padding: 14px 18px;
+    border: 0;
+    border-radius: 14px;
+    background: #0a84ff;
+    color: white;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.pairing-card button:disabled {
+    opacity: 0.5;
+}
+
+.pairing-error {
+    min-height: 20px;
+    margin-top: 14px;
+    color: #ff6961;
+    font-size: 13px;
+}
+
+.install-coach {
+    position: fixed;
+    top: calc(env(safe-area-inset-top) + 12px);
+    left: 16px;
+    right: 16px;
+    z-index: 90;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: 440px;
+    margin: 0 auto;
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 18px;
+    background: rgba(38, 38, 42, 0.94);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.42);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-sizing: border-box;
+}
+
+.install-coach[hidden] {
+    display: none;
+}
+
+.install-coach span {
+    flex: 1;
+    font-size: 13px;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.82);
+}
+
+.install-coach button {
+    flex-shrink: 0;
+    border: 0;
+    border-radius: 12px;
+    padding: 9px 12px;
+    color: white;
+    background: #0a84ff;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* AirMac Deck shell. Earlier styles remain above so the stable UI can be
+   restored with a single commit revert while this branch is evaluated. */
+:root {
+    --accent: #65b7ff;
+    --surface: rgba(255, 255, 255, 0.065);
+    --surface-strong: rgba(38, 38, 44, 0.88);
+    --hairline: rgba(255, 255, 255, 0.11);
+}
+
+body {
+    background:
+        radial-gradient(circle at 85% 5%, rgba(10, 132, 255, 0.16), transparent 36%),
+        radial-gradient(circle at 10% 90%, rgba(94, 92, 230, 0.12), transparent 38%),
+        #111114;
+    touch-action: manipulation;
+}
+
+.container {
+    padding: calc(env(safe-area-inset-top) + 10px) 14px calc(env(safe-area-inset-bottom) + 9px);
+    gap: 10px;
+}
+
+.app-header {
+    height: 38px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 0 0 auto;
+}
+
+.brand {
+    flex: 1;
+    min-width: 0;
+}
+
+.brand strong {
+    display: block;
+    font-size: 17px;
+    line-height: 18px;
+    letter-spacing: -0.02em;
+}
+
+.brand span {
+    display: block;
+    margin-top: 2px;
+    color: rgba(255, 255, 255, 0.38);
+    font-size: 9px;
+    line-height: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.icon-button {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid var(--hairline);
+    border-radius: 50%;
+    background: var(--surface);
+    color: rgba(255, 255, 255, 0.72);
+    font: 20px/1 system-ui;
+    touch-action: manipulation;
+}
+
+.language-button {
+    font: 700 11px/1 -apple-system, BlinkMacSystemFont, sans-serif;
+    letter-spacing: 0.03em;
+}
+
+.views {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+}
+
+.view {
+    position: absolute;
+    inset: 0;
+    min-height: 0;
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
+    visibility: hidden;
+    transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.view.active {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+    visibility: visible;
+}
+
+#pad-view { display: flex; }
+
+#trackpad {
+    width: 100%;
+    min-height: 0;
+    border-radius: 28px;
+    overflow: hidden;
+    background: linear-gradient(145deg, rgba(255,255,255,.085), rgba(255,255,255,.035));
+    box-shadow: inset 0 1px rgba(255,255,255,.08), 0 20px 50px rgba(0,0,0,.22);
+    touch-action: none;
+}
+
+#trackpad::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(circle at 50% 40%, rgba(101,183,255,.08), transparent 48%);
+}
+
+.touch-feedback {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.touch-dot {
+    position: absolute;
+    width: 44px;
+    height: 44px;
+    margin: -22px 0 0 -22px;
+    border-radius: 50%;
+    border: 1px solid rgba(117, 186, 255, .62);
+    background: rgba(10, 132, 255, .12);
+    box-shadow: 0 0 24px rgba(10, 132, 255, .2);
+    opacity: 0;
+    transform: scale(.65);
+    transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.touch-dot.visible { opacity: .75; transform: scale(1); }
+
+.gesture-toast {
+    position: absolute;
+    z-index: 4;
+    left: 50%;
+    top: 50%;
+    max-width: 75%;
+    padding: 9px 14px;
+    border: 1px solid rgba(255,255,255,.13);
+    border-radius: 999px;
+    background: rgba(20,20,24,.72);
+    color: rgba(255,255,255,.84);
+    font-size: 13px;
+    transform: translate(-50%, -35%) scale(.94);
+    opacity: 0;
+    pointer-events: none;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.gesture-toast.visible { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+.status-container { bottom: 24px; }
+
+.deck-scroll,
+.text-scroll {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 5px 2px 18px;
+    box-sizing: border-box;
+    touch-action: pan-y;
+}
+
+.text-card {
+    padding: 20px 16px;
+    border: 1px solid var(--hairline);
+    border-radius: 25px;
+    background: var(--surface);
+    box-shadow: 0 16px 42px rgba(0,0,0,.18);
+}
+
+.text-card h2 { margin: 0 0 6px; font-size: 19px; }
+.text-card > p { margin: 0 0 18px; color: rgba(255,255,255,.46); font-size: 13px; line-height: 1.45; }
+.projection-bar { gap: 10px; align-items: flex-end; }
+.projection-bar textarea { min-height: 54px; height: 54px; max-height: 180px; font-size: 16px; }
+.clear-btn { top: 13px; }
+
+.keyboard-button {
+    width: 100%;
+    min-height: 48px;
+    margin-top: 14px;
+    border: 1px solid var(--hairline);
+    border-radius: 16px;
+    background: rgba(255,255,255,.075);
+    color: rgba(255,255,255,.8);
+    font: 600 14px/1 system-ui;
+    touch-action: manipulation;
+}
+
+.keyboard-button:active, .icon-button:active { transform: scale(.96); background: rgba(255,255,255,.14); }
+
+.gesture-guide {
+    min-height: 26px;
+    padding: 0 3px;
+    color: rgba(255,255,255,.35);
+    font-size: 10px;
+    line-height: 13px;
+    text-align: center;
+    letter-spacing: .01em;
+}
+
+.gesture-guide span {
+    display: block;
+    white-space: nowrap;
+}
+
+.bottom-shell {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.bottom-nav {
+    flex: 0 0 64px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    padding: 5px;
+    border: 1px solid var(--hairline);
+    border-radius: 22px;
+    background: rgba(30,30,34,.68);
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+    box-sizing: border-box;
+}
+
+.nav-button {
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    padding: 0 4px;
+    border: 0;
+    border-radius: 17px;
+    background: transparent;
+    color: rgba(255,255,255,.38);
+    font: 600 12px/1 system-ui;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    appearance: none;
+    -webkit-appearance: none;
+    touch-action: manipulation;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.nav-button.active {
+    border: 1px solid rgba(255,255,255,.06);
+    background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.07));
+    color: white;
+    box-shadow: inset 0 1px rgba(255,255,255,.06), 0 5px 16px rgba(0,0,0,.2);
+}
+.nav-button:focus-visible { outline: 2px solid rgba(101,183,255,.75); outline-offset: -2px; }
+.nav-icon {
+    width: 22px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 18px;
+    margin: 0;
+    font-size: 17px;
+    font-weight: 400;
+    line-height: 18px;
+}
+.nav-label { display: block; height: 12px; line-height: 12px; }
+
+.settings-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 120;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: calc(env(safe-area-inset-top) + 16px) 14px calc(env(safe-area-inset-bottom) + 16px);
+    box-sizing: border-box;
+    background: rgba(0,0,0,.58);
+    backdrop-filter: blur(9px);
+    -webkit-backdrop-filter: blur(9px);
+    touch-action: manipulation;
+}
+
+.settings-overlay[hidden] { display: none; }
+
+.settings-dialog {
+    width: min(100%, 430px);
+    max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 32px);
+    border-radius: 28px;
+    background: rgba(31,31,36,.96);
+    color: white;
+    box-shadow: 0 30px 90px rgba(0,0,0,.55);
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,.14);
+}
+
+.settings-form { max-height: inherit; display: flex; flex-direction: column; }
+.settings-head, .settings-actions { display: flex; align-items: center; padding: 17px 18px; }
+.settings-head { border-bottom: 1px solid rgba(255,255,255,.08); }
+.settings-head h2 { flex: 1; margin: 0; font-size: 18px; }
+.settings-close { border: 0; background: none; color: rgba(255,255,255,.55); font-size: 24px; }
+.settings-body { min-height: 0; overflow-y: auto; padding: 10px 18px 4px; touch-action: pan-y; -webkit-overflow-scrolling: touch; }
+.setting-row { padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.07); }
+.setting-label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 9px; font-size: 14px; }
+.setting-label output { color: var(--accent); font-variant-numeric: tabular-nums; }
+.setting-row input[type="range"], .setting-row select { width: 100%; accent-color: #0a84ff; }
+.setting-row select { padding: 10px; border: 1px solid var(--hairline); border-radius: 12px; background: #27272c; color: white; font-size: 14px; }
+.toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 0; }
+.toggle-row input { width: 42px; height: 24px; accent-color: #0a84ff; }
+.settings-actions { gap: 10px; border-top: 1px solid rgba(255,255,255,.08); }
+.settings-actions button { flex: 1; padding: 12px; border: 0; border-radius: 14px; background: rgba(255,255,255,.08); color: white; font: 600 14px system-ui; }
+.settings-actions .primary { background: #0a84ff; }
+
+body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after { animation: none !important; transition-duration: 0.001ms !important; }
+body.low-power #matrixCanvas { display: none; }
+body.low-power #trackpad, body.low-power .bottom-nav, body.low-power airmac-status { backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+    .container { padding-top: calc(env(safe-area-inset-top) + 5px); }
+    .app-header { height: 34px; }
+    .brand span { display: none; }
+    .bottom-nav { flex-basis: 52px; }
+    .nav-button { flex-direction: row; gap: 5px; }
+    .nav-icon { flex-basis: 18px; }
+    .bottom-shell { gap: 2px; }
+    .gesture-guide { min-height: 13px; }
+    .gesture-guide span { display: inline; }
+    .gesture-guide span + span::before { content: " · "; }
+}

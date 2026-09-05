@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from config import AirMacSettings
+from config import AirMacSettings, load_local_settings
 from diagnostics import RuntimeDiagnostics
 
 
@@ -60,3 +60,13 @@ def test_runtime_diagnostics_whitelist_queue_metrics() -> None:
         last_disconnect_category=None,
     )
     assert payload["queue_metrics"] == {"pointer_depth": 2}
+
+
+def test_local_tools_use_installed_port_with_environment_override(tmp_path) -> None:
+    settings_path = tmp_path / "runtime.json"
+    settings_path.write_text('{"port": 8123, "log_level": "WARNING"}')
+    installed = load_local_settings({}, settings_path)
+    assert installed.port == 8123
+    assert installed.log_level == "WARNING"
+    overridden = load_local_settings({"AIRMAC_PORT": "9000"}, settings_path)
+    assert overridden.port == 9000

@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Mapping
+
+
+RUNTIME_SETTINGS_PATH = (
+    Path.home() / "Library" / "Application Support" / "AirMac" / "runtime.json"
+)
 
 
 def _integer(
@@ -83,3 +90,26 @@ class AirMacSettings:
     @property
     def loopback_base_url(self) -> str:
         return f"http://127.0.0.1:{self.port}"
+
+
+def load_local_settings(
+    environ: Mapping[str, str] | None = None,
+    path: Path = RUNTIME_SETTINGS_PATH,
+) -> AirMacSettings:
+    """Load installer-persisted settings, with explicit environment overrides."""
+
+    values = dict(os.environ if environ is None else environ)
+    if path.exists():
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise ValueError(f"unable to read AirMac runtime settings: {path}") from exc
+        if not isinstance(payload, dict):
+            raise ValueError("AirMac runtime settings must contain a JSON object")
+        for environment_name, key in (
+            ("AIRMAC_PORT", "port"),
+            ("AIRMAC_LOG_LEVEL", "log_level"),
+        ):
+            if environment_name not in values and key in payload:
+                values[environment_name] = str(payload[key])
+    return AirMacSettings.from_env(values)

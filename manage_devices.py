@@ -12,11 +12,11 @@ import urllib.request
 from pathlib import Path
 
 from auth import DeviceStore, DeviceStoreError
-from config import AirMacSettings
+from config import load_local_settings
 
 
 SERVICE_NAME = "com.airmac.remote"
-SETTINGS = AirMacSettings.from_env()
+SETTINGS = load_local_settings()
 HEALTH_URL = f"{SETTINGS.loopback_base_url}/api/health"
 DIAGNOSTICS_URL = f"{SETTINGS.loopback_base_url}/api/diagnostics"
 LOG_PATH = Path.home() / "Library" / "Logs" / "AirMac" / "remote.log"

@@ -162,6 +162,12 @@ log_configuration = {
 with open(runtime_log_config, "w", encoding="utf-8") as handle:
     json.dump(log_configuration, handle, ensure_ascii=False, indent=2)
 os.chmod(runtime_log_config, 0o600)
+runtime_settings_path = os.path.join(os.path.dirname(runtime_log_config), "runtime.json")
+temporary_settings_path = runtime_settings_path + ".new"
+with open(temporary_settings_path, "w", encoding="utf-8") as handle:
+    json.dump({"port": int(port), "log_level": log_level}, handle, indent=2)
+os.chmod(temporary_settings_path, 0o600)
+os.replace(temporary_settings_path, runtime_settings_path)
 
 configuration = {
     "Label": label,

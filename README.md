@@ -14,11 +14,11 @@ AirMac never stores or transmits the Mac login password and does not attempt to
 turn iPhone Touch ID or Face ID into a macOS login credential. Apple exposes Mac
 Auto Unlock through Apple Watch, not through an iPhone web app.
 
-## GitHub Publishing Status
+## Project status
 
-The repository is ready to publish as an MIT-licensed open-source project. Local
-logs, pairing databases, legacy whitelists, virtual environments, and generated
-helper binaries are kept out of Git.
+The repository is maintained as an MIT-licensed open-source project. Local logs,
+pairing databases, legacy whitelists, virtual environments, and generated helper
+binaries are kept out of Git.
 
 Recommended pre-publish check:
 
@@ -27,7 +27,7 @@ git status --short
 git ls-files
 python -m pip install -r requirements-dev.txt
 pytest -q
-node --test tests/frontend_state.test.js tests/ui_components.test.js
+node --test tests/*.test.js
 bash -n install_service.sh uninstall_service.sh tools/generate_pwa_icons.sh
 ```
 
@@ -91,8 +91,8 @@ English interface:
 ### Install
 
 ```bash
-git clone <your-airmac-repository-url>
-cd <repository-directory>
+git clone https://github.com/yilinxiong/AirMac.git
+cd AirMac
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -185,6 +185,49 @@ Every log line includes local time with millisecond precision. Slow pointer even
 
 The legacy `whitelist.json` format is intentionally not migrated because its client-generated IDs were not secure credentials. Existing devices must pair again after upgrading.
 
+### Architecture, protocol, and diagnostics
+
+AirMac's WebSocket is an adapter around a transport-neutral connection handler.
+Authentication, the single-controller lease, reconnect replacement, revocation,
+idle expiry, notification serialization, and text-projection idempotency therefore
+remain independent of FastAPI and can be reused by a future native or BLE
+transport. The macOS controller keeps two bounded ordered lanes—pointer and
+control—and delegates native work to injectable pointer, clipboard, wake, and
+system services.
+
+The current web client requests protocol v2. The server still treats an
+authentication frame without `protocol_version` as v1, so already cached clients
+keep working. A v2 `auth_ok` advertises the negotiated version, server version,
+session ID, capabilities, heartbeat interval, and protocol limits. Unsupported
+versions are rejected before the controller is claimed.
+
+`python manage_devices.py diagnose` reads the loopback-only
+`/api/diagnostics` endpoint. It reports the AirMac/protocol version, uptime,
+controller state, bounded queue counters, maximum observed event-loop delay, and
+the latest disconnect category. It never returns a device ID, client IP, token,
+or projected text.
+
+Runtime settings are validated at startup. The defaults remain port `8000`, a
+5-second authentication timeout, a 16-second foreground-session lease, a 1-second
+monitor interval, and `INFO` logging. Supported environment variables are:
+
+```text
+AIRMAC_PORT
+AIRMAC_AUTH_TIMEOUT_SECONDS
+AIRMAC_SESSION_IDLE_SECONDS
+AIRMAC_MONITOR_INTERVAL_SECONDS
+AIRMAC_METRICS_LOG_INTERVAL_SECONDS
+AIRMAC_EVENT_LOOP_LAG_WARNING_SECONDS
+AIRMAC_LOG_LEVEL
+AIRMAC_DEBUG=0|1
+```
+
+For a non-default installed port, run `AIRMAC_PORT=8123 ./install_service.sh`.
+The generated server LaunchAgent, menu-bar helper, health check, and management
+CLI then use the same port. Invalid ports fail installation instead of producing
+a partly working service. The installer records this non-secret local setting in
+`~/Library/Application Support/AirMac/runtime.json`.
+
 If the installed Swift compiler and macOS SDK do not match, installation continues and copy feedback falls back to a standard macOS notification.
 
 ### Troubleshooting
@@ -206,7 +249,7 @@ to start the newly installed page.
 ```bash
 pip install -r requirements-dev.txt
 pytest
-node --test tests/frontend_state.test.js tests/ui_components.test.js
+node --test tests/*.test.js
 bash -n install_service.sh uninstall_service.sh tools/generate_pwa_icons.sh
 clang -fobjc-arc -framework Cocoa menubar.m -o /tmp/airmac-menubar-check
 clang -fobjc-arc -framework Foundation -framework CoreAudio audio_switcher.m -o /tmp/airmac-audio-switcher-check
@@ -257,7 +300,8 @@ AirMac 不保存或传输 Mac 登录密码，也不会把 iPhone 的触控 ID/�
 ### 安装与运行
 
 ```bash
-cd iphone_mac_remote
+git clone https://github.com/yilinxiong/AirMac.git
+cd AirMac
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -314,9 +358,9 @@ iPhone 锁屏或页面进入后台时会主动暂停 WebSocket；回到 AirMac �
 
 如果 Swift 编译器与 macOS SDK 不匹配，安装仍会继续，复制反馈会自动退回 macOS 系统通知。
 
-### GitHub 发布前确认
+### 开源项目状态
 
-当前仓库已经可以按 MIT License 公开发布。本地日志、配对数据库、旧白名单、虚拟环境
+当前仓库以 MIT License 开源维护。本地日志、配对数据库、旧白名单、虚拟环境
 和生成的辅助二进制都不会被 Git 跟踪。
 
 ### 管理设备
@@ -334,6 +378,39 @@ python manage_devices.py diagnose
 撤销后，正在连接的设备会在约一秒内断开。旧版 `whitelist.json` 不会迁移或自动删除；升级后需要重新配对一次。
 
 后台日志位于 `~/Library/Logs/AirMac/remote.log`。每行包含精确到毫秒的本地时间；若指针处理变慢，日志会分别记录排队时间和 Quartz 执行时间，方便区分网络中断与 Mac 输入层阻塞。日志每 5 MiB 轮转，保留 4 份备份，主日志集合约占 25 MiB。
+
+### 架构、协议与诊断
+
+WebSocket 现在只是传输适配层。认证、单控制器租约、同设备重连替换、撤销、空闲过期、
+通知串行化和文本投射幂等均由独立连接处理器负责，不依赖 FastAPI `WebSocket`，便于未来
+复用于原生客户端或 BLE fallback。macOS 控制器继续保留指针与控制两个有界顺序通道，
+并把指针、剪贴板、唤醒和系统动作拆为可注入服务。
+
+新网页客户端使用协议 v2；认证帧未携带 `protocol_version` 时仍按 v1 处理，因此旧缓存
+客户端可以继续连接。v2 的 `auth_ok` 会返回协商版本、服务端版本、会话 ID、能力、心跳
+间隔和协议限制。不支持的版本会在获得控制权和执行任何动作之前被拒绝。
+
+`python manage_devices.py diagnose` 会访问仅限 loopback 的 `/api/diagnostics`，输出版本、
+运行时间、控制状态、队列计数、事件循环最大延迟和最近断线类别。该接口不会返回设备 ID、
+客户端 IP、令牌或文本内容。
+
+运行参数会在启动时校验。默认端口、认证超时、前台会话超时、监控周期和日志等级仍为
+`8000`、5 秒、16 秒、1 秒和 `INFO`。可用环境变量如下：
+
+```text
+AIRMAC_PORT
+AIRMAC_AUTH_TIMEOUT_SECONDS
+AIRMAC_SESSION_IDLE_SECONDS
+AIRMAC_MONITOR_INTERVAL_SECONDS
+AIRMAC_METRICS_LOG_INTERVAL_SECONDS
+AIRMAC_EVENT_LOOP_LAG_WARNING_SECONDS
+AIRMAC_LOG_LEVEL
+AIRMAC_DEBUG=0|1
+```
+
+如需把安装端口改为 8123，执行 `AIRMAC_PORT=8123 ./install_service.sh`。安装脚本生成的
+服务、菜单栏工具、健康检查和管理 CLI 会使用同一端口；非法端口会直接拒绝安装。
+这项非敏感本机配置保存在 `~/Library/Application Support/AirMac/runtime.json`。
 
 常用排查命令：
 
@@ -357,11 +434,14 @@ launchctl print "gui/$(id -u)/com.airmac.remote"
 
 | File | Responsibility |
 | --- | --- |
-| `main.py` | FastAPI routes, WebSocket authentication, session ownership and monitoring |
+| `main.py` | FastAPI routes, dependency composition, lifecycle, security headers and asset whitelist |
+| `config.py` / `diagnostics.py` | Validated runtime settings and loopback-only sanitized diagnostics |
 | `auth.py` | Pairing challenges and atomic token-digest device storage |
-| `protocol.py` | Strict, size-bounded Pydantic message models |
-| `mac_controller.py` | Ordered input queues, Quartz events, clipboard and macOS commands |
-| `index.html` | Mobile UI, bilingual strings, connection lifecycle and touch gesture dispatch |
+| `protocol.py` | Strict v1/v2 client/server messages and size-bounded wire encoding |
+| `transport.py` / `websocket_transport.py` | Transport-neutral contract and WebSocket adapter |
+| `connection.py` / `sessions.py` | Authentication, controller lease, reconnect, revocation, expiry and idempotency |
+| `mac_controller.py` / `controller_services/` | Ordered queues and injectable native macOS services |
+| `index.html` / `web/` | Mobile document plus build-free bilingual application modules and styles |
 | `frontend_state.js` | Testable reconnect, projection, gesture, settings and latency state |
 | `ui_components.js` | Native Web Components for connection status and the bilingual fixed Quick Deck |
 | `audio_switcher.m` | Core Audio helper that safely lists and cycles output devices |

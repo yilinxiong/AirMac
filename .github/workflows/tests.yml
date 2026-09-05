@@ -21,12 +21,11 @@ jobs:
       - name: Python tests
         run: python -m pytest -q
       - name: Frontend tests
-        run: node --test tests/frontend_state.test.js tests/ui_components.test.js
+        run: node --test tests/*.test.js
       - name: Static checks
         run: |
-          python -m compileall -q main.py auth.py protocol.py mac_controller.py manage_devices.py pairing_dialog.py tests
-          sed -n '/^[[:space:]]*<script>$/,/^[[:space:]]*<\/script>$/p' index.html | sed '1d;$d' | node --check -
-          node --check service-worker.js
+          python -m compileall -q main.py auth.py protocol.py airmac_version.py config.py diagnostics.py connection.py sessions.py transport.py websocket_transport.py web_assets.py mac_controller.py controller_services manage_devices.py pairing_dialog.py tests
+          for file in frontend_state.js ui_components.js service-worker.js web/*.js; do node --check "$file"; done
           python -m json.tool manifest.webmanifest >/dev/null
           bash -n install_service.sh uninstall_service.sh tools/generate_pwa_icons.sh
           python -m pip check

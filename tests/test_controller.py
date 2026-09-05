@@ -123,6 +123,31 @@ class FakeProcess:
 
 
 @pytest.mark.asyncio
+async def test_ac_reachability_assertion_follows_controller_lifecycle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    controller = MacController(keep_reachable_on_ac=True)
+    process = FakeProcess()
+    calls: list[tuple[object, ...]] = []
+
+    async def fake_create_subprocess_exec(*args: object, **_: object) -> FakeProcess:
+        calls.append(args)
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
+    monkeypatch.setattr(mac_controller.os, "getpid", lambda: 4242)
+    monkeypatch.setattr(controller, "_release_pointer", lambda: None)
+    monkeypatch.setattr(controller, "_release_modifiers", lambda: None)
+
+    await controller.start()
+    assert calls == [("caffeinate", "-s", "-w", "4242")]
+    assert controller.reachability_assertion_active
+    await controller.stop()
+    assert process.terminated
+    assert not controller.reachability_assertion_active
+
+
+@pytest.mark.asyncio
 async def test_pointer_queue_coalesces_consecutive_motion() -> None:
     queue = PointerQueue(maxsize=2)
     first = parse_action_message(json.dumps({"action": "move", "dx": 3, "dy": 4}))

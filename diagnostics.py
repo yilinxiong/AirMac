@@ -37,6 +37,7 @@ class RuntimeDiagnostics:
         controller_connected: bool,
         queue_metrics: Mapping[str, int],
         last_disconnect_category: str | None,
+        ac_reachability_assertion: bool = False,
     ) -> dict[str, object]:
         return {
             "status": "ok",
@@ -53,4 +54,5 @@ class RuntimeDiagnostics:
                 self.max_event_loop_lag_seconds * 1000, 1
             ),
             "last_disconnect_category": last_disconnect_category,
+            "ac_reachability_assertion": ac_reachability_assertion,
         }

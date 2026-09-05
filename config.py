@@ -44,6 +44,15 @@ def _seconds(
     return value
 
 
+def _boolean(values: Mapping[str, str], name: str, default: bool) -> bool:
+    raw = values.get(name)
+    if raw is None or raw == "":
+        return default
+    if raw not in {"0", "1"}:
+        raise ValueError(f"{name} must be 0 or 1")
+    return raw == "1"
+
+
 @dataclass(frozen=True, slots=True)
 class AirMacSettings:
     port: int = 8000
@@ -54,6 +63,7 @@ class AirMacSettings:
     event_loop_lag_warning_seconds: float = 0.1
     log_level: str = "INFO"
     debug: bool = False
+    keep_reachable_on_ac: bool = True
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> AirMacSettings:
@@ -63,9 +73,6 @@ class AirMacSettings:
             raise ValueError(
                 "AIRMAC_LOG_LEVEL must be DEBUG, INFO, WARNING, ERROR, or CRITICAL"
             )
-        debug_value = values.get("AIRMAC_DEBUG", "0")
-        if debug_value not in {"0", "1"}:
-            raise ValueError("AIRMAC_DEBUG must be 0 or 1")
         return cls(
             port=_integer(values, "AIRMAC_PORT", 8000, 1, 65_535),
             auth_timeout_seconds=_seconds(
@@ -84,7 +91,10 @@ class AirMacSettings:
                 values, "AIRMAC_EVENT_LOOP_LAG_WARNING_SECONDS", 0.1, 0.01, 10.0
             ),
             log_level=log_level,
-            debug=debug_value == "1",
+            debug=_boolean(values, "AIRMAC_DEBUG", False),
+            keep_reachable_on_ac=_boolean(
+                values, "AIRMAC_KEEP_REACHABLE_ON_AC", True
+            ),
         )
 
     @property
@@ -109,7 +119,12 @@ def load_local_settings(
         for environment_name, key in (
             ("AIRMAC_PORT", "port"),
             ("AIRMAC_LOG_LEVEL", "log_level"),
+            ("AIRMAC_KEEP_REACHABLE_ON_AC", "keep_reachable_on_ac"),
         ):
             if environment_name not in values and key in payload:
-                values[environment_name] = str(payload[key])
+                stored_value = payload[key]
+                if key == "keep_reachable_on_ac" and isinstance(stored_value, bool):
+                    values[environment_name] = "1" if stored_value else "0"
+                else:
+                    values[environment_name] = str(stored_value)
     return AirMacSettings.from_env(values)

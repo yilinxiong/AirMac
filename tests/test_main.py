@@ -370,7 +370,7 @@ def test_default_controller_is_used_for_auto_wake(
     store = DeviceStore(tmp_path / "devices.json")
     controller = FakeController()
     monkeypatch.setattr(main, "is_allowed_ip", lambda _: True)
-    monkeypatch.setattr(main, "MacController", lambda: controller)
+    monkeypatch.setattr(main, "MacController", lambda **_: controller)
     application = main.create_app(store=store)
     device_id, token = store.issue_device("Auto Wake Phone")
 

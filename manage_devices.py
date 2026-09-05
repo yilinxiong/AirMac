@@ -81,6 +81,10 @@ def print_diagnostics(store: DeviceStore) -> bool:
             f"事件循环最大延迟：{runtime.get('event_loop_max_lag_ms', 'unknown')}ms  "
             f"最近断开：{runtime.get('last_disconnect_category') or '-'}"
         )
+        print(
+            "插电网络可达性断言："
+            + ("active" if runtime.get("ac_reachability_assertion") else "inactive")
+        )
         queue_metrics = runtime.get("queue_metrics", {})
         if isinstance(queue_metrics, dict):
             print(

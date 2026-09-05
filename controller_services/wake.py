@@ -12,6 +12,47 @@ logger = logging.getLogger("AirMac.controller")
 
 
 class WakeServiceMixin:
+    async def _start_reachability_assertion(self, owner_pid: int) -> None:
+        if self.reachability_assertion_active:
+            return
+        try:
+            process = await asyncio.create_subprocess_exec(
+                "caffeinate",
+                "-s",
+                "-w",
+                str(owner_pid),
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+        except OSError:
+            logger.exception("Unable to start AC reachability assertion")
+            return
+        self.reachability_process = process
+        self.reachability_task = asyncio.create_task(
+            self._wait_for_reachability_process(process),
+            name="airmac-ac-reachability-assertion",
+        )
+        logger.info("AC-only network reachability assertion started")
+
+    async def _stop_reachability_assertion(self) -> None:
+        task = self.reachability_task
+        if task and not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        self.reachability_task = None
+        self.reachability_process = None
+
+    async def _wait_for_reachability_process(
+        self, process: asyncio.subprocess.Process
+    ) -> None:
+        try:
+            await self._wait_for_background_process(process)
+        finally:
+            if self.reachability_process is process:
+                self.reachability_process = None
+                self.reachability_task = None
+                logger.info("AC-only network reachability assertion ended")
+
     async def _wake_display(self) -> None:
         await self._stop_wake_assertion()
         process = await asyncio.create_subprocess_exec(

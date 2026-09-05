@@ -153,9 +153,14 @@ cannot hold the controller indefinitely.
 After an authenticated phone connection, AirMac checks the main display and wakes
 it only when macOS reports that it is asleep. The same cancellable 30-second
 display assertion used by the Wake button prevents an immediate return to sleep.
-This cannot bypass the password or lock screen. If the whole Mac is in deep sleep,
-the connection must first reach it through macOS **Wake for network access**;
-mobile browsers cannot send a Wake-on-LAN UDP packet themselves.
+This cannot bypass the password or lock screen. While AirMac is installed and the
+Mac is on AC power, it also holds an AC-only system-sleep assertion so the display
+may turn off and lock while the HTTP service remains reachable. The assertion is
+automatically ineffective on battery and ends with the AirMac process. Set
+`AIRMAC_KEEP_REACHABLE_ON_AC=0` during installation to restore normal AC deep
+sleep. A closed laptop lid, explicit deep sleep, or a battery-powered sleeping Mac
+still requires an external Wake-on-LAN capable device; an iPhone web page cannot
+send that UDP packet itself.
 
 ### Paired-device management
 
@@ -203,9 +208,9 @@ versions are rejected before the controller is claimed.
 
 `python manage_devices.py diagnose` reads the loopback-only
 `/api/diagnostics` endpoint. It reports the AirMac/protocol version, uptime,
-controller state, bounded queue counters, maximum observed event-loop delay, and
-the latest disconnect category. It never returns a device ID, client IP, token,
-or projected text.
+controller state, bounded queue counters, maximum observed event-loop delay, AC
+reachability-assertion state, and the latest disconnect category. It never returns
+a device ID, client IP, token, or projected text.
 
 Runtime settings are validated at startup. The defaults remain port `8000`, a
 5-second authentication timeout, a 16-second foreground-session lease, a 1-second
@@ -220,6 +225,7 @@ AIRMAC_METRICS_LOG_INTERVAL_SECONDS
 AIRMAC_EVENT_LOOP_LAG_WARNING_SECONDS
 AIRMAC_LOG_LEVEL
 AIRMAC_DEBUG=0|1
+AIRMAC_KEEP_REACHABLE_ON_AC=0|1
 ```
 
 For a non-default installed port, run `AIRMAC_PORT=8123 ./install_service.sh`.
@@ -352,9 +358,11 @@ iPhone 锁屏或页面进入后台时会主动暂停 WebSocket；回到 AirMac �
 
 手机认证连接后，AirMac 会检查主显示器，只在 macOS 报告显示器处于休眠状态时自动
 唤醒；已经亮屏时不会刷新闲置计时。自动唤醒和手动唤醒共用 30 秒、可取消的显示器
-保活断言，避免刚唤醒又立刻息屏，但不会绕过 macOS 的锁屏或密码策略。如果整台 Mac
-处于服务不可达的深度睡眠，仍需要先开启 macOS 的“唤醒以供网络访问”；手机网页本身
-不能发送 Wake-on-LAN UDP 数据包。
+保活断言，避免刚唤醒又立刻息屏，但不会绕过 macOS 的锁屏或密码策略。安装服务运行且
+Mac 接通电源时，AirMac 还会持有仅在交流电源下有效的系统睡眠断言：显示器仍可熄灭和
+锁屏，但 HTTP 服务不会因深度空闲失联。拔掉电源或 AirMac 退出后断言自动失效；安装时
+设置 `AIRMAC_KEEP_REACHABLE_ON_AC=0` 可恢复插电深度睡眠。合盖、主动深度睡眠或电池
+供电下睡眠后仍需要其他能发送 Wake-on-LAN 的设备，手机网页无法自行发送该 UDP 包。
 
 如果 Swift 编译器与 macOS SDK 不匹配，安装仍会继续，复制反馈会自动退回 macOS 系统通知。
 
@@ -391,8 +399,8 @@ WebSocket 现在只是传输适配层。认证、单控制器租约、同设备�
 间隔和协议限制。不支持的版本会在获得控制权和执行任何动作之前被拒绝。
 
 `python manage_devices.py diagnose` 会访问仅限 loopback 的 `/api/diagnostics`，输出版本、
-运行时间、控制状态、队列计数、事件循环最大延迟和最近断线类别。该接口不会返回设备 ID、
-客户端 IP、令牌或文本内容。
+运行时间、控制状态、队列计数、事件循环最大延迟、插电可达性断言和最近断线类别。该接口
+不会返回设备 ID、客户端 IP、令牌或文本内容。
 
 运行参数会在启动时校验。默认端口、认证超时、前台会话超时、监控周期和日志等级仍为
 `8000`、5 秒、16 秒、1 秒和 `INFO`。可用环境变量如下：
@@ -406,6 +414,7 @@ AIRMAC_METRICS_LOG_INTERVAL_SECONDS
 AIRMAC_EVENT_LOOP_LAG_WARNING_SECONDS
 AIRMAC_LOG_LEVEL
 AIRMAC_DEBUG=0|1
+AIRMAC_KEEP_REACHABLE_ON_AC=0|1
 ```
 
 如需把安装端口改为 8123，执行 `AIRMAC_PORT=8123 ./install_service.sh`。安装脚本生成的

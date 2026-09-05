@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import os
 import time
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
@@ -133,12 +134,14 @@ class MacController(PointerServiceMixin, ClipboardServiceMixin, WakeServiceMixin
         clipboard_service: object | None = None,
         wake_service: object | None = None,
         system_service: object | None = None,
+        keep_reachable_on_ac: bool = False,
     ) -> None:
         self._keyboard: KeyboardController | None = None
         self.pointer_service = pointer_service
         self.clipboard_service = clipboard_service
         self.wake_service = wake_service
         self.system_service = system_service
+        self.keep_reachable_on_ac = keep_reachable_on_ac
         self.hud_path = hud_path or Path(__file__).with_name("hud")
         self.audio_switcher_path = audio_switcher_path or Path(__file__).with_name(
             "audio-switcher"
@@ -157,6 +160,8 @@ class MacController(PointerServiceMixin, ClipboardServiceMixin, WakeServiceMixin
         self.background_tasks: set[asyncio.Task[None]] = set()
         self.wake_process: asyncio.subprocess.Process | None = None
         self.wake_task: asyncio.Task[None] | None = None
+        self.reachability_process: asyncio.subprocess.Process | None = None
+        self.reachability_task: asyncio.Task[None] | None = None
         self.generation = 0
         self.virtual_x = 0.0
         self.virtual_y = 0.0
@@ -182,6 +187,12 @@ class MacController(PointerServiceMixin, ClipboardServiceMixin, WakeServiceMixin
     async def start(self) -> None:
         if self.pointer_task is not None:
             return
+        if self.keep_reachable_on_ac and self.wake_service is None:
+            await self._start_reachability_assertion(os.getpid())
+        elif self.wake_service is not None:
+            start = getattr(self.wake_service, "start", None)
+            if start is not None:
+                await start()
         self.pointer_task = asyncio.create_task(
             self._pointer_worker(), name="airmac-pointer-worker"
         )
@@ -195,6 +206,7 @@ class MacController(PointerServiceMixin, ClipboardServiceMixin, WakeServiceMixin
             await self.wake_service.stop()
         else:
             await self._stop_wake_assertion()
+            await self._stop_reachability_assertion()
         tasks = [task for task in (self.pointer_task, self.control_task) if task]
         for task in tasks:
             task.cancel()
@@ -231,6 +243,13 @@ class MacController(PointerServiceMixin, ClipboardServiceMixin, WakeServiceMixin
             "control_high_water": self.control_high_water,
             "control_dropped": self.control_dropped,
         }
+
+    @property
+    def reachability_assertion_active(self) -> bool:
+        return (
+            self.reachability_process is not None
+            and self.reachability_process.returncode is None
+        )
 
     async def reset(self) -> None:
         reset_started = time.monotonic()

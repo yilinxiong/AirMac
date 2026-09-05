@@ -198,7 +198,9 @@ def create_app(
     )
     device_store = store or DeviceStore()
     pairing_manager = pairing or PairingManager(device_store)
-    mac_controller = controller or MacController()
+    mac_controller = controller or MacController(
+        keep_reachable_on_ac=runtime_settings.keep_reachable_on_ac
+    )
     sessions = SessionRegistry(mac_controller, session_idle_timeout)
     connection_handler = ConnectionHandler(
         device_store,
@@ -403,6 +405,9 @@ def create_app(
             controller_connected=session is not None,
             queue_metrics=queue_metrics,
             last_disconnect_category=connection_handler.last_disconnect_category,
+            ac_reachability_assertion=bool(
+                getattr(mac_controller, "reachability_assertion_active", False)
+            ),
         )
 
     @application.post("/api/pairing/start")

@@ -14,6 +14,7 @@ def test_runtime_settings_keep_documented_defaults() -> None:
     assert settings.monitor_interval_seconds == 1
     assert settings.log_level == "INFO"
     assert not settings.debug
+    assert settings.keep_reachable_on_ac
 
 
 def test_runtime_settings_accept_valid_overrides() -> None:
@@ -25,6 +26,7 @@ def test_runtime_settings_accept_valid_overrides() -> None:
             "AIRMAC_MONITOR_INTERVAL_SECONDS": "0.25",
             "AIRMAC_LOG_LEVEL": "debug",
             "AIRMAC_DEBUG": "1",
+            "AIRMAC_KEEP_REACHABLE_ON_AC": "0",
         }
     )
     assert settings.port == 8123
@@ -33,6 +35,7 @@ def test_runtime_settings_accept_valid_overrides() -> None:
     assert settings.monitor_interval_seconds == 0.25
     assert settings.log_level == "DEBUG"
     assert settings.debug
+    assert not settings.keep_reachable_on_ac
     assert settings.loopback_base_url == "http://127.0.0.1:8123"
 
 
@@ -45,6 +48,7 @@ def test_runtime_settings_accept_valid_overrides() -> None:
         ("AIRMAC_SESSION_IDLE_SECONDS", "0"),
         ("AIRMAC_LOG_LEVEL", "VERBOSE"),
         ("AIRMAC_DEBUG", "yes"),
+        ("AIRMAC_KEEP_REACHABLE_ON_AC", "always"),
     ],
 )
 def test_runtime_settings_reject_invalid_values(name: str, value: str) -> None:
@@ -64,9 +68,12 @@ def test_runtime_diagnostics_whitelist_queue_metrics() -> None:
 
 def test_local_tools_use_installed_port_with_environment_override(tmp_path) -> None:
     settings_path = tmp_path / "runtime.json"
-    settings_path.write_text('{"port": 8123, "log_level": "WARNING"}')
+    settings_path.write_text(
+        '{"port": 8123, "log_level": "WARNING", "keep_reachable_on_ac": false}'
+    )
     installed = load_local_settings({}, settings_path)
     assert installed.port == 8123
     assert installed.log_level == "WARNING"
+    assert not installed.keep_reachable_on_ac
     overridden = load_local_settings({"AIRMAC_PORT": "9000"}, settings_path)
     assert overridden.port == 9000

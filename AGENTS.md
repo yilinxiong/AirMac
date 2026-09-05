@@ -145,11 +145,17 @@ transport confidentiality; never describe it as safe for an untrusted network.
 
 - Wake uses a managed, nonblocking `caffeinate -d -u -t 30` assertion and a delayed
   Shift key. It must not bypass the macOS lock screen or password policy.
+- The installed server defaults to a process-scoped `caffeinate -s -w PID`
+  assertion. It prevents AC-powered idle/deep sleep so the HTTP endpoint remains
+  reachable while still allowing display sleep and locking; it is ineffective on
+  battery and may be disabled by `AIRMAC_KEEP_REACHABLE_ON_AC=0`. Never replace
+  it with an always-on battery `-i` assertion.
 - After WebSocket authentication, check `CGDisplayIsAsleep` and invoke wake only
   when the main display is asleep. An already-awake connection must not refresh
   the user's idle timer.
-- The assertion intentionally outlives a normal phone WebSocket disconnect for its
-  bounded 30-second duration, but is stopped on service shutdown/replacement.
+- The display assertion intentionally outlives a normal phone WebSocket disconnect
+  for its bounded 30-second duration, but is stopped on service shutdown/replacement.
+  The separate AC reachability assertion follows the server process lifecycle.
 - Plain LAN HTTP may not support Service Workers. PWA registration must remain
   optional and must never block normal remote-control startup.
 - When changing a frontend script, bump both its query version in `index.html`

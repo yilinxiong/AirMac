@@ -16,6 +16,10 @@ import Quartz
 from pynput.keyboard import Controller as KeyboardController, Key
 
 from protocol import ActionMessage, MoveAction, QuickAction, ScrollAction, TypeTextAction
+from controller_services.clipboard import ClipboardServiceMixin
+from controller_services.pointer import PointerServiceMixin
+from controller_services.system import SystemServiceMixin
+from controller_services.wake import WakeServiceMixin
 
 
 logger = logging.getLogger("AirMac.controller")
@@ -117,15 +121,24 @@ class PointerQueue:
         return False
 
 
-class MacController:
+class MacController(PointerServiceMixin, ClipboardServiceMixin, WakeServiceMixin, SystemServiceMixin):
     """Serializes macOS input without blocking the ASGI event loop."""
 
     def __init__(
         self,
         hud_path: Path | None = None,
         audio_switcher_path: Path | None = None,
+        *,
+        pointer_service: object | None = None,
+        clipboard_service: object | None = None,
+        wake_service: object | None = None,
+        system_service: object | None = None,
     ) -> None:
         self._keyboard: KeyboardController | None = None
+        self.pointer_service = pointer_service
+        self.clipboard_service = clipboard_service
+        self.wake_service = wake_service
+        self.system_service = system_service
         self.hud_path = hud_path or Path(__file__).with_name("hud")
         self.audio_switcher_path = audio_switcher_path or Path(__file__).with_name(
             "audio-switcher"
@@ -161,6 +174,11 @@ class MacController:
             self._keyboard = KeyboardController()
         return self._keyboard
 
+    async def wake_if_display_asleep(self) -> bool:
+        if self.wake_service is not None:
+            return await self.wake_service.wake_if_display_asleep()
+        return await super().wake_if_display_asleep()
+
     async def start(self) -> None:
         if self.pointer_task is not None:
             return
@@ -173,7 +191,10 @@ class MacController:
 
     async def stop(self) -> None:
         await self.reset()
-        await self._stop_wake_assertion()
+        if self.wake_service is not None:
+            await self.wake_service.stop()
+        else:
+            await self._stop_wake_assertion()
         tasks = [task for task in (self.pointer_task, self.control_task) if task]
         for task in tasks:
             task.cancel()
@@ -231,8 +252,18 @@ class MacController:
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(self.pointer_executor, self._release_pointer)
-        await loop.run_in_executor(self.control_executor, self._release_modifiers)
+        release_pointer = (
+            self.pointer_service.release
+            if self.pointer_service is not None
+            else self._release_pointer
+        )
+        release_modifiers = (
+            self.system_service.release_modifiers
+            if self.system_service is not None
+            else self._release_modifiers
+        )
+        await loop.run_in_executor(self.pointer_executor, release_pointer)
+        await loop.run_in_executor(self.control_executor, release_modifiers)
         self.last_move_time = 0.0
         reset_ms = (time.monotonic() - reset_started) * 1000
         if reset_ms > 200:
@@ -254,7 +285,13 @@ class MacController:
             try:
                 execution_started = time.monotonic()
                 await loop.run_in_executor(
-                    self.pointer_executor, self._execute_pointer, item.message
+                    self.pointer_executor,
+                    (
+                        self.pointer_service.execute
+                        if self.pointer_service is not None
+                        else self._execute_pointer
+                    ),
+                    item.message,
                 )
                 finished = time.monotonic()
                 queue_ms = (execution_started - item.enqueued_at) * 1000
@@ -324,96 +361,21 @@ class MacController:
                 self.current_control_task = None
                 self.control_queue.task_done()
 
-    def _execute_pointer(self, message: ActionMessage) -> None:
-        action = message.action
-        if action == "mouse_down":
-            current_pos = self._current_position()
-            self._post_mouse(
-                Quartz.kCGEventLeftMouseDown,
-                current_pos,
-                Quartz.kCGMouseButtonLeft,
-            )
-            self.mouse_is_down = True
-        elif action == "mouse_up":
-            current_pos = self._current_position()
-            self._post_mouse(
-                Quartz.kCGEventLeftMouseUp, current_pos, Quartz.kCGMouseButtonLeft
-            )
-            self.mouse_is_down = False
-        elif action in {"move", "mouse_drag"}:
-            assert isinstance(message, MoveAction)
-            now = time.monotonic()
-            if now - self.last_move_time > 0.2:
-                self.virtual_x, self.virtual_y = self._current_position()
-            self.virtual_x += message.dx
-            self.virtual_y += message.dy
-            self.virtual_x, self.virtual_y = self._clamp_to_displays(
-                self.virtual_x, self.virtual_y
-            )
-            self.last_move_time = now
-            event_type = (
-                Quartz.kCGEventLeftMouseDragged
-                if action == "mouse_drag"
-                else Quartz.kCGEventMouseMoved
-            )
-            event = Quartz.CGEventCreateMouseEvent(
-                None,
-                event_type,
-                (self.virtual_x, self.virtual_y),
-                Quartz.kCGMouseButtonLeft,
-            )
-            Quartz.CGEventSetIntegerValueField(
-                event, Quartz.kCGMouseEventDeltaX, int(message.dx)
-            )
-            Quartz.CGEventSetIntegerValueField(
-                event, Quartz.kCGMouseEventDeltaY, int(message.dy)
-            )
-            Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
-        elif action == "click":
-            current_pos = self._current_position()
-            button = message.button
-            if button == "right":
-                down_type = Quartz.kCGEventRightMouseDown
-                up_type = Quartz.kCGEventRightMouseUp
-                quartz_button = Quartz.kCGMouseButtonRight
-            else:
-                down_type = Quartz.kCGEventLeftMouseDown
-                up_type = Quartz.kCGEventLeftMouseUp
-                quartz_button = Quartz.kCGMouseButtonLeft
-            self._post_mouse(down_type, current_pos, quartz_button)
-            self._post_mouse(up_type, current_pos, quartz_button)
-        elif action == "triple_click":
-            current_pos = self._current_position()
-            for click_state in (2, 3):
-                for event_type in (
-                    Quartz.kCGEventLeftMouseDown,
-                    Quartz.kCGEventLeftMouseUp,
-                ):
-                    event = Quartz.CGEventCreateMouseEvent(
-                        None,
-                        event_type,
-                        current_pos,
-                        Quartz.kCGMouseButtonLeft,
-                    )
-                    Quartz.CGEventSetIntegerValueField(
-                        event, Quartz.kCGMouseEventClickState, click_state
-                    )
-                    Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
-        elif action == "scroll":
-            event = Quartz.CGEventCreateScrollWheelEvent(
-                None, Quartz.kCGScrollEventUnitPixel, 1, int(-message.dy)
-            )
-            Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
-
     async def _execute_control(self, item: QueuedAction) -> None:
         message = item.message
         action = message.action
         loop = asyncio.get_running_loop()
         if action == "auto_copy":
-            await self._auto_copy(item)
+            if self.clipboard_service is not None:
+                await self.clipboard_service.auto_copy(item)
+            else:
+                await self._auto_copy(item)
         elif action == "type_text":
             assert isinstance(message, TypeTextAction)
-            await self._type_text(message.text)
+            if self.clipboard_service is not None:
+                await self.clipboard_service.type_text(message.text)
+            else:
+                await self._type_text(message.text)
             await item.notify(
                 {
                     "type": "action_result",
@@ -424,7 +386,13 @@ class MacController:
             )
         elif action in {"type", "keydown", "media", "cmd_tab"}:
             await loop.run_in_executor(
-                self.control_executor, self._execute_keyboard, message
+                self.control_executor,
+                (
+                    self.system_service.execute_keyboard
+                    if self.system_service is not None
+                    else self._execute_keyboard
+                ),
+                message,
             )
         elif action == "quick_action":
             assert isinstance(message, QuickAction)
@@ -432,7 +400,12 @@ class MacController:
                 await self._run_process("screencapture", "-c", "-x")
             elif message.command == "close_fullscreen":
                 result = await loop.run_in_executor(
-                    self.control_executor, self._close_fullscreen_window
+                    self.control_executor,
+                    (
+                        self.system_service.close_fullscreen
+                        if self.system_service is not None
+                        else self._close_fullscreen_window
+                    ),
                 )
                 await item.notify(
                     {
@@ -460,7 +433,11 @@ class MacController:
             else:
                 await loop.run_in_executor(
                     self.control_executor,
-                    self._execute_quick_action,
+                    (
+                        self.system_service.execute_quick_action
+                        if self.system_service is not None
+                        else self._execute_quick_action
+                    ),
                     message.command,
                 )
         elif action == "mission_control":
@@ -489,156 +466,10 @@ class MacController:
         elif action == "display_sleep":
             await self._run_process("pmset", "displaysleepnow")
         elif action == "wake_watch":
-            await self._wake_display()
-
-    async def _auto_copy(self, item: QueuedAction) -> None:
-        old_clipboard = await self._clipboard_read()
-        restored_or_copied = False
-        await self._clipboard_write("")
-        try:
-            await self._run_process(
-                "osascript",
-                "-e",
-                'tell application "System Events" to keystroke "c" using command down',
-            )
-            await asyncio.sleep(0.15)
-            new_clipboard = await self._clipboard_read()
-            if new_clipboard:
-                restored_or_copied = True
-                preview = (
-                    new_clipboard[:20] + "..."
-                    if len(new_clipboard) > 20
-                    else new_clipboard
-                )
-                await item.notify({"type": "copy_success", "preview": preview})
-                if self.hud_path.exists():
-                    process = await asyncio.create_subprocess_exec(
-                        str(self.hud_path), "✅ 自动复制成功"
-                    )
-                    task = asyncio.create_task(
-                        self._wait_for_background_process(process),
-                        name="airmac-hud-process",
-                    )
-                    self.background_tasks.add(task)
-                    task.add_done_callback(self.background_tasks.discard)
-                else:
-                    await self._run_process(
-                        "osascript",
-                        "-e",
-                        'display notification "已复制所选文本" with title "AirMac"',
-                    )
-        finally:
-            if not restored_or_copied and old_clipboard:
-                await self._clipboard_write(old_clipboard)
-
-    async def _type_text(self, text: str) -> None:
-        loop = asyncio.get_running_loop()
-        old_clipboard = await self._clipboard_read()
-        await self._clipboard_write(text)
-        try:
-            await asyncio.sleep(0.15)
-            await loop.run_in_executor(self.control_executor, self._paste)
-            await asyncio.sleep(min(0.8, 0.15 + len(text) * 0.005))
-            await loop.run_in_executor(
-                self.control_executor, self._press_and_release, Key.enter
-            )
-        finally:
-            current_clipboard = await self._clipboard_read()
-            if current_clipboard == text:
-                await self._clipboard_write(old_clipboard)
-
-    async def _clipboard_read(self) -> str:
-        process = await asyncio.create_subprocess_exec(
-            "pbpaste",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL,
-        )
-        try:
-            stdout, _ = await asyncio.wait_for(process.communicate(), timeout=2.0)
-        except asyncio.TimeoutError as exc:
-            await self._terminate_process(process)
-            raise RuntimeError("pbpaste timed out") from exc
-        except asyncio.CancelledError:
-            await self._terminate_process(process)
-            raise
-        if process.returncode != 0:
-            raise RuntimeError(f"pbpaste failed with status {process.returncode}")
-        return stdout.decode("utf-8", errors="replace")
-
-    async def _clipboard_write(self, text: str) -> None:
-        process = await asyncio.create_subprocess_exec(
-            "pbcopy",
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
-        )
-        try:
-            await asyncio.wait_for(
-                process.communicate(text.encode("utf-8")), timeout=2.0
-            )
-        except asyncio.TimeoutError as exc:
-            await self._terminate_process(process)
-            raise RuntimeError("pbcopy timed out") from exc
-        except asyncio.CancelledError:
-            await self._terminate_process(process)
-            raise
-        if process.returncode != 0:
-            raise RuntimeError(f"pbcopy failed with status {process.returncode}")
-
-    async def _wake_display(self) -> None:
-        await self._stop_wake_assertion()
-        process = await asyncio.create_subprocess_exec(
-            "caffeinate",
-            "-d",
-            "-u",
-            "-t",
-            "30",
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
-        )
-        self.wake_process = process
-        self.wake_task = asyncio.create_task(
-            self._wait_for_wake_process(process), name="airmac-wake-assertion"
-        )
-        logger.info("Wake assertion started duration_seconds=30")
-        await asyncio.sleep(0.35)
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(
-            self.control_executor, self._press_and_release, Key.shift
-        )
-
-    async def wake_if_display_asleep(self) -> bool:
-        loop = asyncio.get_running_loop()
-        is_asleep = await loop.run_in_executor(
-            self.control_executor, self._main_display_is_asleep
-        )
-        if not is_asleep:
-            return False
-        logger.info("Sleeping display detected after authentication; waking")
-        await self._wake_display()
-        return True
-
-    def _main_display_is_asleep(self) -> bool:
-        return bool(Quartz.CGDisplayIsAsleep(Quartz.CGMainDisplayID()))
-
-    async def _stop_wake_assertion(self) -> None:
-        task = self.wake_task
-        if task and not task.done():
-            task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
-        self.wake_task = None
-        self.wake_process = None
-
-    async def _wait_for_wake_process(
-        self, process: asyncio.subprocess.Process
-    ) -> None:
-        try:
-            await self._wait_for_background_process(process)
-        finally:
-            if self.wake_process is process:
-                self.wake_process = None
-                self.wake_task = None
-                logger.info("Wake assertion ended")
+            if self.wake_service is not None:
+                await self.wake_service.wake()
+            else:
+                await self._wake_display()
 
     async def _run_process(self, *arguments: str, timeout: float = 5.0) -> None:
         process = await asyncio.create_subprocess_exec(
@@ -708,249 +539,3 @@ class MacController:
             except ProcessLookupError:
                 return
             await process.wait()
-
-    def _execute_keyboard(self, message: ActionMessage) -> None:
-        if message.action == "type":
-            self.keyboard.type(message.char)
-        elif message.action == "keydown":
-            key = Key.backspace if message.key == "Backspace" else Key.enter
-            self._press_and_release(key)
-        elif message.action == "cmd_tab":
-            self.keyboard.press(Key.cmd)
-            self._press_and_release(Key.tab)
-            self.keyboard.release(Key.cmd)
-        elif message.action == "media":
-            if message.command == "playpause":
-                self._press_and_release(Key.media_play_pause)
-            else:
-                self.keyboard.press(Key.cmd)
-                self.keyboard.press(Key.ctrl)
-                self._press_and_release("f")
-                self.keyboard.release(Key.ctrl)
-                self.keyboard.release(Key.cmd)
-
-    def _execute_quick_action(self, command: str) -> None:
-        if command in WINDOW_SHORTCUT_KEY_CODES:
-            self._post_key_code(
-                WINDOW_SHORTCUT_KEY_CODES[command], WINDOW_SHORTCUT_FLAGS
-            )
-        elif command == "volume_down":
-            self._press_and_release(Key.media_volume_down)
-        elif command == "volume_mute":
-            self._press_and_release(Key.media_volume_mute)
-        elif command == "volume_up":
-            self._press_and_release(Key.media_volume_up)
-        elif command == "brightness_down":
-            self._post_key_code(144, 0)
-        elif command == "brightness_up":
-            self._post_key_code(145, 0)
-        elif command == "lock_screen":
-            self._post_key_code(
-                12,
-                Quartz.kCGEventFlagMaskControl | Quartz.kCGEventFlagMaskCommand,
-            )
-        elif command == "open_control_center":
-            self._post_key_code(CONTROL_CENTER_KEY_CODE, CONTROL_CENTER_FLAGS)
-
-    def _close_fullscreen_window(self) -> str:
-        accessibility_fullscreen = False
-        accessibility_bounds_fullscreen = False
-        try:
-            system = AX.AXUIElementCreateSystemWide()
-            error, application = AX.AXUIElementCopyAttributeValue(
-                system, AX.kAXFocusedApplicationAttribute, None
-            )
-            if error == AX.kAXErrorSuccess and application is not None:
-                error, window = AX.AXUIElementCopyAttributeValue(
-                    application, AX.kAXFocusedWindowAttribute, None
-                )
-                if error == AX.kAXErrorSuccess and window is not None:
-                    error, is_fullscreen = AX.AXUIElementCopyAttributeValue(
-                        window, AX_FULLSCREEN_ATTRIBUTE, None
-                    )
-                    accessibility_fullscreen = (
-                        error == AX.kAXErrorSuccess and bool(is_fullscreen)
-                    )
-                    position = self._read_ax_value(
-                        window,
-                        AX.kAXPositionAttribute,
-                        AX.kAXValueCGPointType,
-                    )
-                    size = self._read_ax_value(
-                        window,
-                        AX.kAXSizeAttribute,
-                        AX.kAXValueCGSizeType,
-                    )
-                    if position is not None and size is not None:
-                        accessibility_bounds_fullscreen = (
-                            self._rectangle_fills_active_display(
-                                position.x,
-                                position.y,
-                                size.width,
-                                size.height,
-                            )
-                        )
-        except Exception:
-            logger.debug("Unable to read accessibility fullscreen state", exc_info=True)
-
-        bounds_fullscreen = self._frontmost_window_fills_display()
-        if not (
-            accessibility_fullscreen
-            or accessibility_bounds_fullscreen
-            or bounds_fullscreen
-        ):
-            logger.info(
-                "Ignored close-fullscreen request: focused window is not fullscreen"
-            )
-            return "ignored"
-
-        self._post_key_code(12, Quartz.kCGEventFlagMaskCommand)
-        logger.info(
-            "Requested graceful quit for focused fullscreen app accessibility=%s "
-            "accessibility_bounds=%s window_server_bounds=%s",
-            accessibility_fullscreen,
-            accessibility_bounds_fullscreen,
-            bounds_fullscreen,
-        )
-        return "closed"
-
-    def _read_ax_value(
-        self, element: object, attribute: str, value_type: int
-    ) -> object | None:
-        error, value = AX.AXUIElementCopyAttributeValue(element, attribute, None)
-        if error != AX.kAXErrorSuccess or value is None:
-            return None
-        try:
-            success, extracted = AX.AXValueGetValue(value, value_type, None)
-            return extracted if success else None
-        except (TypeError, ValueError):
-            return None
-
-    def _frontmost_window_fills_display(self) -> bool:
-        application = AppKit.NSWorkspace.sharedWorkspace().frontmostApplication()
-        if application is None:
-            return False
-        process_id = int(application.processIdentifier())
-        options = (
-            Quartz.kCGWindowListOptionOnScreenOnly
-            | Quartz.kCGWindowListExcludeDesktopElements
-        )
-        window_infos = Quartz.CGWindowListCopyWindowInfo(
-            options, Quartz.kCGNullWindowID
-        ) or []
-        for info in window_infos:
-            if int(info.get(Quartz.kCGWindowOwnerPID, -1)) != process_id:
-                continue
-            if int(info.get(Quartz.kCGWindowLayer, -1)) != 0:
-                continue
-            bounds = info.get(Quartz.kCGWindowBounds)
-            if not hasattr(bounds, "get"):
-                continue
-            if self._rectangle_fills_active_display(
-                float(bounds.get("X", math.inf)),
-                float(bounds.get("Y", math.inf)),
-                float(bounds.get("Width", -1)),
-                float(bounds.get("Height", -1)),
-            ):
-                return True
-        return False
-
-    def _rectangle_fills_active_display(
-        self, x: float, y: float, width: float, height: float
-    ) -> bool:
-        success, display_ids, count = Quartz.CGGetActiveDisplayList(16, None, None)
-        if success != 0 or count == 0:
-            return False
-        for index in range(count):
-            display = Quartz.CGDisplayBounds(display_ids[index])
-            if (
-                abs(x - display.origin.x) <= 3
-                and abs(y - display.origin.y) <= 3
-                and abs(width - display.size.width) <= 3
-                and abs(height - display.size.height) <= 3
-            ):
-                return True
-        return False
-
-    def _post_key_code(self, key_code: int, flags: int) -> None:
-        for is_down in (True, False):
-            event = Quartz.CGEventCreateKeyboardEvent(None, key_code, is_down)
-            Quartz.CGEventSetFlags(event, flags)
-            Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
-
-    def _paste(self) -> None:
-        self.keyboard.press(Key.cmd)
-        self._press_and_release("v")
-        self.keyboard.release(Key.cmd)
-
-    def _press_and_release(self, key: object) -> None:
-        self.keyboard.press(key)
-        self.keyboard.release(key)
-
-    def _release_modifiers(self) -> None:
-        for key in (Key.cmd, Key.ctrl, Key.shift, Key.alt):
-            try:
-                self.keyboard.release(key)
-            except Exception:
-                logger.debug("Modifier was not held: %s", key)
-
-    def _release_pointer(self) -> None:
-        try:
-            self._post_mouse(
-                Quartz.kCGEventLeftMouseUp,
-                self._current_position(),
-                Quartz.kCGMouseButtonLeft,
-            )
-        finally:
-            self.mouse_is_down = False
-
-    def _post_mouse(self, event_type: int, position: tuple[float, float], button: int) -> None:
-        event = Quartz.CGEventCreateMouseEvent(None, event_type, position, button)
-        Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
-
-    def _current_position(self) -> tuple[float, float]:
-        event = Quartz.CGEventCreate(None)
-        point = Quartz.CGEventGetLocation(event)
-        return point.x, point.y
-
-    def _get_displays(self) -> list[dict[str, float]] | None:
-        now = time.monotonic()
-        if self.displays_cache is None or now - self.displays_cache_time > 5.0:
-            success, active_displays, count = Quartz.CGGetActiveDisplayList(
-                10, None, None
-            )
-            if success == 0 and count > 0:
-                self.displays_cache = []
-                for index in range(count):
-                    bounds = Quartz.CGDisplayBounds(active_displays[index])
-                    self.displays_cache.append(
-                        {
-                            "min_x": bounds.origin.x,
-                            "max_x": bounds.origin.x + bounds.size.width - 1,
-                            "min_y": bounds.origin.y,
-                            "max_y": bounds.origin.y + bounds.size.height - 1,
-                        }
-                    )
-            self.displays_cache_time = now
-        return self.displays_cache
-
-    def _clamp_to_displays(self, x: float, y: float) -> tuple[float, float]:
-        displays = self._get_displays()
-        if not displays or not math.isfinite(x) or not math.isfinite(y):
-            return x, y
-        for bounds in displays:
-            if (
-                bounds["min_x"] <= x <= bounds["max_x"]
-                and bounds["min_y"] <= y <= bounds["max_y"]
-            ):
-                return x, y
-        best_x, best_y = x, y
-        min_distance = math.inf
-        for bounds in displays:
-            candidate_x = max(bounds["min_x"], min(x, bounds["max_x"]))
-            candidate_y = max(bounds["min_y"], min(y, bounds["max_y"]))
-            distance = (candidate_x - x) ** 2 + (candidate_y - y) ** 2
-            if distance < min_distance:
-                min_distance = distance
-                best_x, best_y = candidate_x, candidate_y
-        return best_x, best_y
